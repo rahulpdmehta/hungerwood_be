@@ -7,11 +7,19 @@ const fs = require('fs');
 const path = require('path');
 const { getCurrentISO } = require('./dateFormatter');
 
-const DATA_DIR = path.join(__dirname, '../../data');
+// Use /tmp on Vercel (writable), or data directory locally
+const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV;
+const DATA_DIR = isVercel 
+    ? '/tmp/hungerwood-data' 
+    : path.join(__dirname, '../../data');
 
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+    try {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+    } catch (error) {
+        console.error(`Failed to create data directory ${DATA_DIR}:`, error);
+    }
 }
 
 class JsonDB {

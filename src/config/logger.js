@@ -26,16 +26,20 @@ const consoleFormat = winston.format.combine(
   })
 );
 
-// Create logger
-const logger = winston.createLogger({
-  level: config.nodeEnv === 'development' ? 'debug' : 'info',
-  format: logFormat,
-  transports: [
-    // Console transport
-    new winston.transports.Console({
-      format: consoleFormat
-    }),
-    
+// Check if running on Vercel (read-only filesystem)
+const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV;
+
+// Create transports array
+const transports = [
+  // Console transport (always available)
+  new winston.transports.Console({
+    format: consoleFormat
+  })
+];
+
+// Only add file transports if not on Vercel
+if (!isVercel) {
+  transports.push(
     // File transport for errors
     new winston.transports.File({
       filename: 'logs/error.log',
@@ -46,7 +50,14 @@ const logger = winston.createLogger({
     new winston.transports.File({
       filename: 'logs/combined.log'
     })
-  ],
+  );
+}
+
+// Create logger
+const logger = winston.createLogger({
+  level: config.nodeEnv === 'development' ? 'debug' : 'info',
+  format: logFormat,
+  transports,
   // Don't exit on error
   exitOnError: false
 });

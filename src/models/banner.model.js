@@ -7,11 +7,27 @@ const fs = require('fs').promises;
 const path = require('path');
 const logger = require('../config/logger');
 
-const BANNERS_FILE = path.join(__dirname, '../../data/banners.json');
+// Use /tmp on Vercel (writable), or data directory locally
+const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV;
+const DATA_DIR = isVercel 
+    ? '/tmp/hungerwood-data' 
+    : path.join(__dirname, '../../data');
+
+// Ensure data directory exists
+const ensureDataDir = async () => {
+  try {
+    await fs.mkdir(DATA_DIR, { recursive: true });
+  } catch (error) {
+    logger.error(`Failed to create data directory ${DATA_DIR}:`, error);
+  }
+};
+
+const BANNERS_FILE = path.join(DATA_DIR, 'banners.json');
 
 // Initialize banners file if it doesn't exist
 const initializeBannersFile = async () => {
   try {
+    await ensureDataDir();
     await fs.access(BANNERS_FILE);
   } catch (error) {
     // File doesn't exist, create with sample data
