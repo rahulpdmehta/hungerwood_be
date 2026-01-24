@@ -27,6 +27,10 @@ const app = express();
 // MIDDLEWARE
 // ============================================
 
+// Trust proxy - Required for Vercel and other proxy environments
+// This allows Express to correctly identify the client's IP address
+app.set('trust proxy', true);
+
 // Body parser
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
