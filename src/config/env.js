@@ -30,14 +30,22 @@ module.exports = {
   restaurantPhone: process.env.RESTAURANT_PHONE || '1800-HUNGER',
 
   // CORS
-  allowedOrigins: process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
-    : [
-        'http://localhost:5173',
-        'http://localhost:3000',
-        'http://localhost:3001',
-        'https://hungerwood-fe.vercel.app'
-      ],
+  allowedOrigins: (() => {
+    const defaultOrigins = [
+      'http://localhost:5173',
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'https://hungerwood-fe.vercel.app'
+    ];
+    
+    if (process.env.ALLOWED_ORIGINS) {
+      const envOrigins = process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim());
+      // Merge environment origins with defaults, removing duplicates
+      return [...new Set([...envOrigins, ...defaultOrigins])];
+    }
+    
+    return defaultOrigins;
+  })(),
 
   // Wallet & Referral
   referralBonusReferrer: parseInt(process.env.REFERRAL_BONUS_REFERRER) || 50,

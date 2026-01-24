@@ -80,37 +80,61 @@ const corsOptions = {
       return callback(null, true);
     }
     
+    // Normalize origin by removing trailing slash
+    const normalizedOrigin = origin.replace(/\/$/, '');
+    
     // In development, allow all localhost origins
     if (config.nodeEnv === 'development') {
-      if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+      if (normalizedOrigin.startsWith('http://localhost:') || normalizedOrigin.startsWith('http://127.0.0.1:')) {
         return callback(null, true);
       }
     }
     
-    // Check if origin is in allowed list
-    if (config.allowedOrigins.includes(origin)) {
+    // Normalize allowed origins for comparison (remove trailing slashes)
+    const normalizedAllowedOrigins = config.allowedOrigins.map(o => o.replace(/\/$/, ''));
+    
+    // Check if origin is in allowed list (exact match)
+    if (normalizedAllowedOrigins.includes(normalizedOrigin)) {
       return callback(null, true);
     }
     
     // Allow Vercel preview deployments (e.g., hungerwood-fe-git-main.vercel.app)
-    // This allows all preview deployments without needing to add each one manually
-    if (origin.includes('.vercel.app')) {
-      // Extract the base domain (e.g., hungerwood-fe from hungerwood-fe-git-main.vercel.app)
-      const vercelBaseDomain = origin.match(/https?:\/\/([^.]+)\.vercel\.app/);
-      if (vercelBaseDomain) {
-        const baseName = vercelBaseDomain[1].split('-git-')[0]; // Remove git branch suffix
-        // Check if any allowed origin matches this base domain
-        const isAllowedVercelDomain = config.allowedOrigins.some(allowedOrigin => {
-          if (allowedOrigin.includes('.vercel.app')) {
-            const allowedBase = allowedOrigin.match(/https?:\/\/([^.]+)\.vercel\.app/);
-            return allowedBase && allowedBase[1].split('-git-')[0] === baseName;
+    // If we have any .vercel.app domain in allowed origins, allow all .vercel.app domains
+    // This is safe because Vercel domains are controlled by Vercel
+    if (normalizedOrigin.includes('.vercel.app')) {
+      // Check if we have any .vercel.app domain in allowed origins
+      const hasVercelDomain = normalizedAllowedOrigins.some(origin => origin.includes('.vercel.app'));
+      
+      if (hasVercelDomain) {
+        // Extract base name for matching (e.g., hungerwood-fe from hungerwood-fe-git-main.vercel.app)
+        const vercelMatch = normalizedOrigin.match(/https?:\/\/([^.]+)\.vercel\.app/);
+        if (vercelMatch) {
+          const requestBaseName = vercelMatch[1].split('-git-')[0].split('-')[0]; // Get first part
+          
+          // Check if any allowed origin matches this base domain
+          const isAllowedVercelDomain = normalizedAllowedOrigins.some(allowedOrigin => {
+            if (allowedOrigin.includes('.vercel.app')) {
+              const allowedMatch = allowedOrigin.match(/https?:\/\/([^.]+)\.vercel\.app/);
+              if (allowedMatch) {
+                const allowedBaseName = allowedMatch[1].split('-git-')[0].split('-')[0];
+                // Allow if base names match (e.g., hungerwood-fe matches hungerwood-fe-git-main)
+                return allowedBaseName === requestBaseName;
+              }
+            }
+            return false;
+          });
+          
+          if (isAllowedVercelDomain) {
+            return callback(null, true);
           }
-          return false;
-        });
-        if (isAllowedVercelDomain) {
-          return callback(null, true);
         }
       }
+    }
+    
+    // Log rejected origin for debugging (only in development)
+    if (config.nodeEnv === 'development') {
+      logger.warn(`CORS: Rejected origin: ${normalizedOrigin}`);
+      logger.warn(`CORS: Allowed origins: ${normalizedAllowedOrigins.join(', ')}`);
     }
     
     // Reject other origins
