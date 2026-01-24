@@ -96,6 +96,27 @@ if (config.nodeEnv === 'development') {
 // ROUTES
 // ============================================
 
+// Root route
+app.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'HungerWood API',
+    version: '1.0.0',
+    endpoints: {
+      health: '/health',
+      api: '/api',
+      auth: '/api/auth',
+      menu: '/api/menu',
+      orders: '/api/orders',
+      wallet: '/api/wallet',
+      banners: '/api/banners',
+      admin: '/api/admin'
+    },
+    documentation: '/api',
+    timestamp: getCurrentISO()
+  });
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({
