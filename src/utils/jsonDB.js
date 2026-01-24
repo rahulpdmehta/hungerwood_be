@@ -13,24 +13,37 @@ const DATA_DIR = isVercel
     ? '/tmp/hungerwood-data' 
     : path.join(__dirname, '../../data');
 
-// Ensure data directory exists
-if (!fs.existsSync(DATA_DIR)) {
-    try {
-        fs.mkdirSync(DATA_DIR, { recursive: true });
-    } catch (error) {
-        console.error(`Failed to create data directory ${DATA_DIR}:`, error);
+// Ensure data directory exists (lazy initialization to avoid blocking)
+let dataDirInitialized = false;
+const ensureDataDir = () => {
+    if (!dataDirInitialized) {
+        try {
+            if (!fs.existsSync(DATA_DIR)) {
+                fs.mkdirSync(DATA_DIR, { recursive: true });
+            }
+            dataDirInitialized = true;
+        } catch (error) {
+            console.error(`Failed to create data directory ${DATA_DIR}:`, error);
+            // Don't throw - allow app to continue
+        }
     }
-}
+};
 
 class JsonDB {
     constructor(filename) {
+        ensureDataDir(); // Ensure directory exists before using it
         this.filepath = path.join(DATA_DIR, filename);
         this.ensureFile();
     }
 
     ensureFile() {
-        if (!fs.existsSync(this.filepath)) {
-            fs.writeFileSync(this.filepath, JSON.stringify([], null, 2));
+        try {
+            if (!fs.existsSync(this.filepath)) {
+                fs.writeFileSync(this.filepath, JSON.stringify([], null, 2));
+            }
+        } catch (error) {
+            console.error(`Failed to ensure file ${this.filepath}:`, error);
+            // Don't throw - allow read() to handle missing file
         }
     }
 
