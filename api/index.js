@@ -3,8 +3,22 @@
  * This file is used when deploying to Vercel
  */
 
-// Set Vercel environment flag early
+// Set Vercel environment flags EARLY before any modules are loaded
+// This ensures all file system operations detect Vercel correctly
 process.env.VERCEL = '1';
+process.env.VERCEL_ENV = process.env.VERCEL_ENV || 'production';
+
+// Also set AWS_LAMBDA_FUNCTION_NAME if not set (for compatibility)
+if (!process.env.AWS_LAMBDA_FUNCTION_NAME && !process.env.VERCEL) {
+  // We're in a serverless environment
+  process.env.AWS_LAMBDA_FUNCTION_NAME = 'vercel';
+}
+
+console.log('Vercel environment detected:', {
+  VERCEL: process.env.VERCEL,
+  VERCEL_ENV: process.env.VERCEL_ENV,
+  __dirname: __dirname
+});
 
 let app;
 try {

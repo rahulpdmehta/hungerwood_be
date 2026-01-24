@@ -7,18 +7,52 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-// Detect Vercel environment more reliably
-const isVercel = process.env.VERCEL === '1' || 
-                 process.env.VERCEL_ENV || 
-                 process.env.AWS_LAMBDA_FUNCTION_NAME || // Also works on Lambda
-                 __dirname.includes('/var/task'); // Vercel uses /var/task
+// Detect Vercel/Lambda environment more reliably
+const detectVercel = () => {
+  // Check environment variables first
+  if (process.env.VERCEL === '1' || process.env.VERCEL_ENV || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    return true;
+  }
+  
+  // Check __dirname path (Vercel uses /var/task, Lambda uses /var/task or /var/runtime)
+  const dirname = __dirname || '';
+  if (dirname.includes('/var/task') || dirname.includes('/var/runtime')) {
+    return true;
+  }
+  
+  // Check if we're in a serverless environment by checking if /tmp exists and is writable
+  // This is a fallback check
+  try {
+    if (fs.existsSync('/tmp') && !fs.existsSync(path.join(__dirname, '../../uploads'))) {
+      // If /tmp exists but local uploads doesn't, likely serverless
+      return true;
+    }
+  } catch (e) {
+    // Ignore errors
+  }
+  
+  return false;
+};
+
+const isVercel = detectVercel();
+
+// Log for debugging (only in development)
+if (process.env.NODE_ENV === 'development') {
+  console.log('Upload middleware - Vercel detected:', isVercel, '__dirname:', __dirname);
+}
 
 // Get uploads directory - use /tmp on Vercel, local directory otherwise
 const getUploadsDir = () => {
   if (isVercel) {
     return '/tmp/hungerwood-uploads';
   }
-  return path.join(__dirname, '../../uploads');
+  const localDir = path.join(__dirname, '../../uploads');
+  // Safety check: never use /var/task
+  if (localDir.includes('/var/task')) {
+    console.warn('Detected /var/task in path, forcing /tmp');
+    return '/tmp/hungerwood-uploads';
+  }
+  return localDir;
 };
 
 // Use memory storage on Vercel (no file system access needed)
@@ -27,6 +61,7 @@ let storage;
 
 if (isVercel) {
   // Memory storage for Vercel - files are stored in memory
+  console.log('Using memory storage for uploads (Vercel detected)');
   storage = multer.memoryStorage();
 } else {
   // Lazy directory creation for local development
@@ -34,12 +69,18 @@ if (isVercel) {
   const ensureUploadsDir = (dir) => {
     if (!uploadsDirInitialized) {
       try {
+        // Safety check: never try to create directories in /var/task
+        if (dir.includes('/var/task')) {
+          console.error('Attempted to create directory in /var/task, aborting');
+          throw new Error('Cannot create directory in /var/task');
+        }
         if (!fs.existsSync(dir)) {
           fs.mkdirSync(dir, { recursive: true });
         }
         uploadsDirInitialized = true;
       } catch (error) {
         console.error(`Failed to create uploads directory ${dir}:`, error);
+        throw error; // Re-throw to prevent using invalid directory
       }
     }
   };
@@ -47,9 +88,13 @@ if (isVercel) {
   // Disk storage for local development
   storage = multer.diskStorage({
     destination: function (req, file, cb) {
-      const uploadsDir = getUploadsDir();
-      ensureUploadsDir(uploadsDir);
-      cb(null, uploadsDir);
+      try {
+        const uploadsDir = getUploadsDir();
+        ensureUploadsDir(uploadsDir);
+        cb(null, uploadsDir);
+      } catch (error) {
+        cb(error); // Pass error to multer
+      }
     },
     filename: function (req, file, cb) {
       // Generate unique filename: timestamp-randomstring-originalname
