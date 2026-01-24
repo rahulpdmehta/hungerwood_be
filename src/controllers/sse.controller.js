@@ -3,13 +3,11 @@
  * Handles Server-Sent Events for real-time order status updates
  */
 
+const Order = require('../models/Order.model');
 const orderEventManager = require('../services/event.service');
-const JsonDB = require('../utils/jsonDB');
 const logger = require('../config/logger');
 const { getCurrentISO } = require('../utils/dateFormatter');
 const config = require('../config/env');
-
-const ordersDB = new JsonDB('orders.json');
 
 /**
  * Stream order status updates via SSE
@@ -20,8 +18,17 @@ exports.streamOrderStatus = async (req, res) => {
     const { id } = req.params;
 
     try {
+        // Validate order ID
+        if (!id || id === 'undefined' || id === 'null') {
+            logger.warn(`SSE connection attempt with invalid order ID: ${id}`);
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid order ID'
+            });
+        }
+
         // Verify order exists
-        const order = ordersDB.findById(id);
+        const order = await Order.findById(id);
         if (!order) {
             logger.warn(`SSE connection attempt for non-existent order: ${id}`);
             return res.status(404).json({

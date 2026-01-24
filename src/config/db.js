@@ -33,7 +33,13 @@ const connectDB = async () => {
 
   } catch (error) {
     logger.error('Error connecting to MongoDB:', error.message);
-    process.exit(1);
+    // In development, don't exit - allow app to continue (Mongoose will buffer operations)
+    // In production/Vercel, exit if connection fails
+    if (config.nodeEnv === 'production' || process.env.VERCEL) {
+      process.exit(1);
+    }
+    // Re-throw error so caller can handle it
+    throw error;
   }
 };
 

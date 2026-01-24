@@ -3,12 +3,10 @@
  * Handles category CRUD operations for admin
  */
 
-const JsonDB = require('../utils/jsonDB');
+const Category = require('../models/Category.model');
+const MenuItem = require('../models/MenuItem.model');
 const logger = require('../config/logger');
 const { getCurrentISO } = require('../utils/dateFormatter');
-
-const categoriesDB = new JsonDB('categories.json');
-const menuItemsDB = new JsonDB('menuItems.json');
 
 /**
  * Get all categories
@@ -16,19 +14,18 @@ const menuItemsDB = new JsonDB('menuItems.json');
  */
 exports.getAllCategories = async (req, res) => {
   try {
-    const categories = categoriesDB.findAll();
+    const categories = await Category.find().sort({ order: 1 });
 
     // Count menu items for each category
-    const categoriesWithCount = categories.map(category => {
-      const itemCount = menuItemsDB.findAll().filter(
-        item => item.category === category._id
-      ).length;
-
-      return {
-        ...category,
-        itemCount
-      };
-    });
+    const categoriesWithCount = await Promise.all(
+      categories.map(async (category) => {
+        const itemCount = await MenuItem.countDocuments({ category: category._id });
+        return {
+          ...category.toObject(),
+          itemCount
+        };
+      })
+    );
 
     res.json({
       success: true,
@@ -50,7 +47,7 @@ exports.getAllCategories = async (req, res) => {
  */
 exports.getCategoryById = async (req, res) => {
   try {
-    const category = categoriesDB.findById(req.params.id);
+    const category = await Category.findById(req.params.id);
 
     if (!category) {
       return res.status(404).json({
@@ -60,9 +57,7 @@ exports.getCategoryById = async (req, res) => {
     }
 
     // Count menu items
-    const itemCount = menuItemsDB.findAll().filter(
-      item => item.category === category._id
-    ).length;
+    const itemCount = await MenuItem.countDocuments({ category: category._id });
 
     res.json({
       success: true,
@@ -98,9 +93,9 @@ exports.createCategory = async (req, res) => {
     }
 
     // Check if category name already exists
-    const existingCategory = categoriesDB.findAll().find(
-      cat => cat.name.toLowerCase() === name.toLowerCase()
-    );
+    const existingCategory = await Category.findOne({
+      name: { $regex: new RegExp(`^${name}$`, 'i') }
+    });
 
     if (existingCategory) {
       return res.status(400).json({
@@ -116,16 +111,14 @@ exports.createCategory = async (req, res) => {
     }
 
     // Create category
-    const categoryData = {
+    const category = new Category({
       name: name.trim(),
       description: description?.trim() || '',
       image: finalImageUrl,
-      isActive: Boolean(isActive),
-      createdAt: getCurrentISO(),
-      updatedAt: getCurrentISO()
-    };
+      isActive: Boolean(isActive)
+    });
 
-    const category = categoriesDB.create(categoryData);
+    await category.save();
 
     logger.info(`Category created by admin ${req.user.userId}: ${category.name}`);
 
@@ -151,7 +144,7 @@ exports.updateCategory = async (req, res) => {
   try {
     const { name, description, imageUrl, isActive } = req.body;
 
-    const category = categoriesDB.findById(req.params.id);
+    const category = await Category.findById(req.params.id);
 
     if (!category) {
       return res.status(404).json({
@@ -162,9 +155,10 @@ exports.updateCategory = async (req, res) => {
 
     // Check if new name conflicts with existing category
     if (name && name !== category.name) {
-      const existingCategory = categoriesDB.findAll().find(
-        cat => cat.name.toLowerCase() === name.toLowerCase() && cat._id !== req.params.id
-      );
+      const existingCategory = await Category.findOne({
+        name: { $regex: new RegExp(`^${name}$`, 'i') },
+        _id: { $ne: req.params.id }
+      });
 
       if (existingCategory) {
         return res.status(400).json({
@@ -183,16 +177,18 @@ exports.updateCategory = async (req, res) => {
     }
 
     // Update category
-    const updateData = {
-      updatedAt: getCurrentISO()
-    };
+    const updateData = {};
 
     if (name !== undefined) updateData.name = name.trim();
     if (description !== undefined) updateData.description = description.trim();
     if (finalImageUrl !== category.image) updateData.image = finalImageUrl;
     if (isActive !== undefined) updateData.isActive = Boolean(isActive);
 
-    const updatedCategory = categoriesDB.update(req.params.id, updateData);
+    const updatedCategory = await Category.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true, runValidators: true }
+    );
 
     logger.info(`Category updated by admin ${req.user.userId}: ${updatedCategory.name}`);
 
@@ -216,7 +212,7 @@ exports.updateCategory = async (req, res) => {
  */
 exports.deleteCategory = async (req, res) => {
   try {
-    const category = categoriesDB.findById(req.params.id);
+    const category = await Category.findById(req.params.id);
 
     if (!category) {
       return res.status(404).json({
@@ -226,9 +222,7 @@ exports.deleteCategory = async (req, res) => {
     }
 
     // Check if category has menu items
-    const hasMenuItems = menuItemsDB.findAll().some(
-      item => item.category === req.params.id
-    );
+    const hasMenuItems = await MenuItem.exists({ category: req.params.id });
 
     if (hasMenuItems) {
       return res.status(400).json({
@@ -237,7 +231,7 @@ exports.deleteCategory = async (req, res) => {
       });
     }
 
-    categoriesDB.delete(req.params.id);
+    await Category.findByIdAndDelete(req.params.id);
 
     logger.info(`Category deleted by admin ${req.user.userId}: ${category.name}`);
 
@@ -260,7 +254,7 @@ exports.deleteCategory = async (req, res) => {
  */
 exports.toggleCategoryStatus = async (req, res) => {
   try {
-    const category = categoriesDB.findById(req.params.id);
+    const category = await Category.findById(req.params.id);
 
     if (!category) {
       return res.status(404).json({
@@ -269,10 +263,11 @@ exports.toggleCategoryStatus = async (req, res) => {
       });
     }
 
-    const updatedCategory = categoriesDB.update(req.params.id, {
-      isActive: !category.isActive,
-      updatedAt: getCurrentISO()
-    });
+    const updatedCategory = await Category.findByIdAndUpdate(
+      req.params.id,
+      { isActive: !category.isActive },
+      { new: true }
+    );
 
     logger.info(`Category status toggled by admin ${req.user.userId}: ${updatedCategory.name} - ${updatedCategory.isActive ? 'Active' : 'Inactive'}`);
 

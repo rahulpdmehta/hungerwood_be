@@ -9,7 +9,6 @@ const { ORDER_TYPES, ORDER_STATUS, PAYMENT_METHODS } = require('../utils/constan
 const orderSchema = new mongoose.Schema({
   orderId: {
     type: String,
-    unique: true,
     required: true
   },
   
@@ -147,7 +146,7 @@ const orderSchema = new mongoose.Schema({
 
 // Indexes for faster queries
 orderSchema.index({ user: 1, createdAt: -1 });
-orderSchema.index({ orderId: 1 });
+orderSchema.index({ orderId: 1 }, { unique: true });
 orderSchema.index({ status: 1 });
 orderSchema.index({ createdAt: -1 });
 

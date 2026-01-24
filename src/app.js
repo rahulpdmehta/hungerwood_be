@@ -1,6 +1,6 @@
 /**
  * Express Application Configuration
- * Using JSON files instead of MongoDB
+ * Using MongoDB for data persistence
  */
 
 const express = require('express');
@@ -8,8 +8,17 @@ const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const config = require('./config/env');
 const logger = require('./config/logger');
+const connectDB = require('./config/db');
 const { notFound, errorHandler } = require('./middlewares/error.middleware');
 const { getCurrentISO } = require('./utils/dateFormatter');
+
+// Connect to MongoDB
+// Always attempt connection - if MongoDB is not available, Mongoose will buffer operations
+connectDB().catch(err => {
+  logger.error('Failed to connect to MongoDB:', err);
+  logger.warn('MongoDB connection failed. Make sure MongoDB is running or set MONGO_URI environment variable.');
+  // Don't exit - allow app to run, but operations will fail until connection is established
+});
 
 // Import routes
 const authRoutes = require('./routes/auth.routes');
@@ -29,7 +38,14 @@ const app = express();
 
 // Trust proxy - Required for Vercel and other proxy environments
 // This allows Express to correctly identify the client's IP address
-app.set('trust proxy', true);
+// Only enable on Vercel/production, not locally (to avoid rate limiting bypass)
+const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV;
+if (isVercel) {
+  app.set('trust proxy', true);
+} else {
+  // In local development, only trust first proxy (safer for rate limiting)
+  app.set('trust proxy', 1);
+}
 
 // Body parser
 app.use(express.json({ limit: '10mb' }));

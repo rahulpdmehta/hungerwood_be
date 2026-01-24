@@ -3,12 +3,10 @@
  * Handles wallet balance management and transactions
  */
 
-const JsonDB = require('../utils/jsonDB');
-const { WalletTransactionModel, TRANSACTION_TYPES, TRANSACTION_REASONS } = require('../models/WalletTransaction.model');
+const User = require('../models/User.model');
+const WalletTransaction = require('../models/WalletTransaction.model');
+const { TRANSACTION_TYPES, TRANSACTION_REASONS } = require('../models/WalletTransaction.model');
 const logger = require('../config/logger');
-
-const usersDB = new JsonDB('users.json');
-const walletTransactionDB = new WalletTransactionModel();
 
 class WalletService {
     /**
@@ -16,7 +14,7 @@ class WalletService {
      */
     async getWalletBalance(userId) {
         try {
-            const user = usersDB.findById(userId);
+            const user = await User.findById(userId);
             if (!user) {
                 throw new Error('User not found');
             }
@@ -41,7 +39,7 @@ class WalletService {
                 throw new Error('Credit amount must be positive');
             }
 
-            const user = usersDB.findById(userId);
+            const user = await User.findById(userId);
             if (!user) {
                 throw new Error('User not found');
             }
@@ -51,13 +49,12 @@ class WalletService {
             const newBalance = currentBalance + amount;
 
             // Update user's wallet balance
-            const updatedUser = usersDB.update(userId, {
-                walletBalance: newBalance
-            });
+            user.walletBalance = newBalance;
+            await user.save();
 
             // Create transaction record
-            const transaction = walletTransactionDB.create({
-                userId,
+            const transaction = new WalletTransaction({
+                user: userId,
                 type: TRANSACTION_TYPES.CREDIT,
                 amount,
                 reason,
@@ -67,6 +64,7 @@ class WalletService {
                 description: options.description || `Wallet credited: ${reason}`,
                 metadata: options.metadata || {}
             });
+            await transaction.save();
 
             logger.info(`Wallet credited: User ${userId}, Amount: ₹${amount}, Reason: ${reason}`);
 
@@ -96,7 +94,7 @@ class WalletService {
                 throw new Error('Debit amount must be positive');
             }
 
-            const user = usersDB.findById(userId);
+            const user = await User.findById(userId);
             if (!user) {
                 throw new Error('User not found');
             }
@@ -112,13 +110,12 @@ class WalletService {
             const newBalance = currentBalance - amount;
 
             // Update user's wallet balance
-            const updatedUser = usersDB.update(userId, {
-                walletBalance: newBalance
-            });
+            user.walletBalance = newBalance;
+            await user.save();
 
             // Create transaction record
-            const transaction = walletTransactionDB.create({
-                userId,
+            const transaction = new WalletTransaction({
+                user: userId,
                 type: TRANSACTION_TYPES.DEBIT,
                 amount,
                 reason,
@@ -127,6 +124,7 @@ class WalletService {
                 description: options.description || `Wallet debited: ${reason}`,
                 metadata: options.metadata || {}
             });
+            await transaction.save();
 
             logger.info(`Wallet debited: User ${userId}, Amount: ₹${amount}, Reason: ${reason}`);
 
@@ -135,7 +133,7 @@ class WalletService {
                 transaction,
                 previousBalance: currentBalance,
                 newBalance,
-                user: updatedUser
+                user
             };
         } catch (error) {
             logger.error('Error debiting wallet:', error);
@@ -148,7 +146,16 @@ class WalletService {
      */
     async getTransactions(userId, options = {}) {
         try {
-            const transactions = walletTransactionDB.findByUserId(userId, options);
+            const { limit = 50, offset = 0, type = null } = options;
+            
+            const query = { user: userId };
+            if (type) query.type = type;
+            
+            const transactions = await WalletTransaction.find(query)
+                .sort({ createdAt: -1 })
+                .limit(limit)
+                .skip(offset);
+            
             const balance = await this.getWalletBalance(userId);
 
             return {
@@ -241,15 +248,30 @@ class WalletService {
      */
     async getWalletStats() {
         try {
-            const stats = walletTransactionDB.getStats();
-            const users = usersDB.findAll();
+            const [totalCredits, totalDebits, totalTransactions, users] = await Promise.all([
+                WalletTransaction.aggregate([
+                    { $match: { type: TRANSACTION_TYPES.CREDIT } },
+                    { $group: { _id: null, total: { $sum: '$amount' } } }
+                ]),
+                WalletTransaction.aggregate([
+                    { $match: { type: TRANSACTION_TYPES.DEBIT } },
+                    { $group: { _id: null, total: { $sum: '$amount' } } }
+                ]),
+                WalletTransaction.countDocuments(),
+                User.find({}, 'walletBalance')
+            ]);
 
+            const credits = totalCredits[0]?.total || 0;
+            const debits = totalDebits[0]?.total || 0;
             const totalWalletBalance = users.reduce((sum, user) => {
                 return sum + (user.walletBalance || 0);
             }, 0);
 
             return {
-                ...stats,
+                totalTransactions,
+                totalCredits: credits,
+                totalDebits: debits,
+                netAmount: credits - debits,
                 totalWalletBalance,
                 usersWithBalance: users.filter(u => (u.walletBalance || 0) > 0).length
             };

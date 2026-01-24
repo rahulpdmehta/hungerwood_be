@@ -3,11 +3,11 @@
  * Handles address management for users
  */
 
-const JsonDB = require('../utils/jsonDB');
+const Address = require('../models/Address.model');
+const User = require('../models/User.model');
 const logger = require('../config/logger');
 const { getCurrentISO } = require('../utils/dateFormatter');
 
-const usersDB = new JsonDB('users.json');
 const MAX_ADDRESSES = 5;
 
 /**
@@ -15,18 +15,11 @@ const MAX_ADDRESSES = 5;
  */
 exports.getAddresses = async (req, res) => {
   try {
-    const user = usersDB.findById(req.user.userId);
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
+    const addresses = await Address.find({ user: req.user.userId }).sort({ isDefault: -1, createdAt: -1 });
 
     res.json({
       success: true,
-      data: user.addresses || []
+      data: addresses
     });
   } catch (error) {
     logger.error('Get addresses error:', error);
@@ -60,19 +53,9 @@ exports.addAddress = async (req, res) => {
       });
     }
 
-    const user = usersDB.findById(req.user.userId);
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
-    const addresses = user.addresses || [];
-
     // Check max addresses limit
-    if (addresses.length >= MAX_ADDRESSES) {
+    const addressCount = await Address.countDocuments({ user: req.user.userId });
+    if (addressCount >= MAX_ADDRESSES) {
       return res.status(400).json({
         success: false,
         message: `Maximum ${MAX_ADDRESSES} addresses allowed`
@@ -80,23 +63,24 @@ exports.addAddress = async (req, res) => {
     }
 
     // Create new address
-    const newAddress = {
-      id: Date.now().toString(),
+    const newAddress = new Address({
+      user: req.user.userId,
       label,
       street,
       city,
       state,
       pincode,
-      isDefault: addresses.length === 0, // First address is default
-      createdAt: getCurrentISO()
-    };
+      isDefault: addressCount === 0 // First address is default
+    });
 
-    addresses.push(newAddress);
+    await newAddress.save();
 
-    // Update user
-    const updatedUser = usersDB.update(req.user.userId, { addresses });
+    // Update user's addresses array
+    await User.findByIdAndUpdate(req.user.userId, {
+      $push: { addresses: newAddress._id }
+    });
 
-    logger.info(`Address added for user: ${user.phone}`);
+    logger.info(`Address added for user: ${req.user.userId}`);
 
     res.json({
       success: true,
@@ -120,19 +104,10 @@ exports.updateAddress = async (req, res) => {
     const { id } = req.params;
     const { label, street, city, state, pincode } = req.body;
 
-    const user = usersDB.findById(req.user.userId);
+    // Find address belonging to user
+    const address = await Address.findOne({ _id: id, user: req.user.userId });
 
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
-    const addresses = user.addresses || [];
-    const addressIndex = addresses.findIndex(addr => addr.id === id);
-
-    if (addressIndex === -1) {
+    if (!address) {
       return res.status(404).json({
         success: false,
         message: 'Address not found'
@@ -148,22 +123,20 @@ exports.updateAddress = async (req, res) => {
     }
 
     // Update address fields
-    if (label) addresses[addressIndex].label = label;
-    if (street) addresses[addressIndex].street = street;
-    if (city) addresses[addressIndex].city = city;
-    if (state) addresses[addressIndex].state = state;
-    if (pincode) addresses[addressIndex].pincode = pincode;
-    addresses[addressIndex].updatedAt = getCurrentISO();
+    if (label) address.label = label;
+    if (street) address.street = street;
+    if (city) address.city = city;
+    if (state) address.state = state;
+    if (pincode) address.pincode = pincode;
 
-    // Update user
-    usersDB.update(req.user.userId, { addresses });
+    await address.save();
 
-    logger.info(`Address updated for user: ${user.phone}`);
+    logger.info(`Address updated for user: ${req.user.userId}`);
 
     res.json({
       success: true,
       message: 'Address updated successfully',
-      data: addresses[addressIndex]
+      data: address
     });
   } catch (error) {
     logger.error('Update address error:', error);
@@ -181,40 +154,36 @@ exports.deleteAddress = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const user = usersDB.findById(req.user.userId);
+    // Find address belonging to user
+    const address = await Address.findOne({ _id: id, user: req.user.userId });
 
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
-    const addresses = user.addresses || [];
-    const addressIndex = addresses.findIndex(addr => addr.id === id);
-
-    if (addressIndex === -1) {
+    if (!address) {
       return res.status(404).json({
         success: false,
         message: 'Address not found'
       });
     }
 
-    const deletedAddress = addresses[addressIndex];
-    const wasDefault = deletedAddress.isDefault;
+    const wasDefault = address.isDefault;
 
-    // Remove address
-    addresses.splice(addressIndex, 1);
+    // Delete address
+    await Address.findByIdAndDelete(id);
+
+    // Remove from user's addresses array
+    await User.findByIdAndUpdate(req.user.userId, {
+      $pull: { addresses: id }
+    });
 
     // If deleted address was default, set first address as default
-    if (wasDefault && addresses.length > 0) {
-      addresses[0].isDefault = true;
+    if (wasDefault) {
+      const firstAddress = await Address.findOne({ user: req.user.userId }).sort({ createdAt: 1 });
+      if (firstAddress) {
+        firstAddress.isDefault = true;
+        await firstAddress.save();
+      }
     }
 
-    // Update user
-    usersDB.update(req.user.userId, { addresses });
-
-    logger.info(`Address deleted for user: ${user.phone}`);
+    logger.info(`Address deleted for user: ${req.user.userId}`);
 
     res.json({
       success: true,
@@ -236,19 +205,10 @@ exports.setDefaultAddress = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const user = usersDB.findById(req.user.userId);
+    // Find address belonging to user
+    const address = await Address.findOne({ _id: id, user: req.user.userId });
 
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
-    const addresses = user.addresses || [];
-    const addressIndex = addresses.findIndex(addr => addr.id === id);
-
-    if (addressIndex === -1) {
+    if (!address) {
       return res.status(404).json({
         success: false,
         message: 'Address not found'
@@ -256,22 +216,21 @@ exports.setDefaultAddress = async (req, res) => {
     }
 
     // Set all addresses to non-default
-    addresses.forEach(addr => {
-      addr.isDefault = false;
-    });
+    await Address.updateMany(
+      { user: req.user.userId },
+      { isDefault: false }
+    );
 
     // Set selected address as default
-    addresses[addressIndex].isDefault = true;
+    address.isDefault = true;
+    await address.save();
 
-    // Update user
-    usersDB.update(req.user.userId, { addresses });
-
-    logger.info(`Default address set for user: ${user.phone}`);
+    logger.info(`Default address set for user: ${req.user.userId}`);
 
     res.json({
       success: true,
       message: 'Default address updated successfully',
-      data: addresses[addressIndex]
+      data: address
     });
   } catch (error) {
     logger.error('Set default address error:', error);

@@ -3,18 +3,18 @@
  * Handles admin-only operations
  */
 
+const Order = require('../models/Order.model');
+const User = require('../models/User.model');
+const MenuItem = require('../models/MenuItem.model');
+const Category = require('../models/Category.model');
 const orderService = require('../services/order.service');
 const menuService = require('../services/menu.service');
 const walletService = require('../services/wallet.service');
 const referralService = require('../services/referral.service');
-const JsonDB = require('../utils/jsonDB');
 const { TRANSACTION_REASONS } = require('../models/WalletTransaction.model');
 const { successResponse, errorResponse } = require('../utils/helpers');
 const { HTTP_STATUS } = require('../utils/constants');
 const logger = require('../config/logger');
-
-const usersDB = new JsonDB('users.json');
-const ordersDB = new JsonDB('orders.json');
 
 /**
  * Get all orders
@@ -286,12 +286,14 @@ const getWalletStats = async (req, res, next) => {
  */
 const getAllUsers = async (req, res, next) => {
   try {
-    const users = usersDB.findAll();
-    const orders = ordersDB.findAll();
+    const [users, orders] = await Promise.all([
+      User.find().sort({ createdAt: -1 }),
+      Order.find().sort({ createdAt: -1 })
+    ]);
 
     // Add order stats for each user
-    const usersWithStats = users.map(user => {
-      const userOrders = orders.filter(order => order.user === user._id);
+    const usersWithStats = await Promise.all(users.map(async (user) => {
+      const userOrders = orders.filter(order => order.user.toString() === user._id.toString());
       const totalOrders = userOrders.length;
       const totalSpent = userOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
       const lastOrder = userOrders.length > 0
@@ -307,7 +309,7 @@ const getAllUsers = async (req, res, next) => {
         isActive: user.isActive !== undefined ? user.isActive : true,
         walletBalance: user.walletBalance || 0,
         referralCode: user.referralCode || null,
-        totalReferrals: user.totalReferrals || 0,
+        totalReferrals: user.referralCount || 0,
         createdAt: user.createdAt || null,
         stats: {
           totalOrders,
@@ -315,10 +317,7 @@ const getAllUsers = async (req, res, next) => {
           lastOrderDate: lastOrder ? lastOrder.createdAt : null
         }
       };
-    });
-
-    // Sort by creation date (newest first)
-    usersWithStats.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    }));
 
     return successResponse(
       res,
@@ -341,11 +340,11 @@ const getAllUsers = async (req, res, next) => {
  */
 const getDashboardStats = async (req, res, next) => {
   try {
-    const users = usersDB.findAll();
-    const orders = ordersDB.findAll();
-    const JsonDB = require('../utils/jsonDB');
-    const menuDB = new JsonDB('menuItems.json');
-    const menuItems = menuDB.findAll();
+    const [users, orders, menuItems] = await Promise.all([
+      User.find(),
+      Order.find(),
+      MenuItem.find()
+    ]);
 
     const { dateFilter = 30 } = req.query;
     const now = new Date();
@@ -459,7 +458,7 @@ const getDashboardStats = async (req, res, next) => {
  */
 const getOrdersAnalytics = async (req, res, next) => {
   try {
-    const orders = ordersDB.findAll();
+    const orders = await Order.find().sort({ createdAt: -1 });
     const { days = 30 } = req.query;
 
     const now = new Date();
@@ -526,12 +525,11 @@ const getOrdersAnalytics = async (req, res, next) => {
  */
 const getMenuAnalytics = async (req, res, next) => {
   try {
-    const allOrders = ordersDB.findAll();
-    const JsonDB = require('../utils/jsonDB');
-    const menuDB = new JsonDB('menuItems.json');
-    const categoryDB = new JsonDB('categories.json');
-    const menuItems = menuDB.findAll();
-    const categories = categoryDB.findAll();
+    const [allOrders, menuItems, categories] = await Promise.all([
+      Order.find().sort({ createdAt: -1 }),
+      MenuItem.find(),
+      Category.find()
+    ]);
 
     const { dateFilter = 30 } = req.query;
     const now = new Date();
@@ -625,8 +623,8 @@ const getMenuAnalytics = async (req, res, next) => {
  */
 const getCustomerAnalytics = async (req, res, next) => {
   try {
-    const users = usersDB.findAll();
-    const orders = ordersDB.findAll();
+    const users = await User.find();
+    const orders = await Order.find().sort({ createdAt: -1 });
     const { days = 30 } = req.query;
 
     const now = new Date();

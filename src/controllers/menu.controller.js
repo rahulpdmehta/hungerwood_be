@@ -1,28 +1,26 @@
 /**
  * Menu Controller
- * Handles menu-related operations using JSON files
+ * Handles menu-related operations using MongoDB
  */
 
-const JsonDB = require('../utils/jsonDB');
+const Category = require('../models/Category.model');
+const MenuItem = require('../models/MenuItem.model');
 const logger = require('../config/logger');
 const { getCurrentISO } = require('../utils/dateFormatter');
-
-const categoriesDB = new JsonDB('categories.json');
-const menuItemsDB = new JsonDB('menuItems.json');
 
 /**
  * Get all categories
  */
 exports.getCategories = async (req, res) => {
   try {
-    const categories = categoriesDB.findAll();
+    const categories = await Category.find({ isActive: true }).sort({ order: 1 });
 
     res.json({
       success: true,
       data: categories
     });
   } catch (error) {
-    console.error('Get categories error:', error);
+    logger.error('Get categories error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch categories'
@@ -37,37 +35,25 @@ exports.getMenuItems = async (req, res) => {
   try {
     const { category, isVeg, search } = req.query;
 
-    let items = menuItemsDB.findAll();
-
-    // Filter by category
+    // Build query
+    const query = { isAvailable: true };
+    
     if (category) {
-      items = items.filter(item => item.category === category);
+      query.category = category;
     }
-
-    // Filter by veg/non-veg
+    
     if (isVeg !== undefined) {
-      const vegFilter = isVeg === 'true';
-      items = items.filter(item => item.isVeg === vegFilter);
+      query.isVeg = isVeg === 'true';
     }
-
-    // Search by name or description
+    
     if (search) {
-      const searchLower = search.toLowerCase();
-      items = items.filter(item =>
-        item.name.toLowerCase().includes(searchLower) ||
-        item.description.toLowerCase().includes(searchLower)
-      );
+      query.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } }
+      ];
     }
 
-    // Populate category details
-    const categories = categoriesDB.findAll();
-    items = items.map(item => {
-      const category = categories.find(cat => cat._id === item.category);
-      return {
-        ...item,
-        category: category || { _id: item.category, name: 'Unknown' }
-      };
-    });
+    let items = await MenuItem.find(query).populate('category', 'name slug').sort({ createdAt: -1 });
 
     res.json({
       success: true,
@@ -90,7 +76,7 @@ exports.getMenuItem = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const item = menuItemsDB.findById(id);
+    const item = await MenuItem.findById(id).populate('category', 'name slug');
 
     if (!item) {
       return res.status(404).json({
@@ -98,13 +84,6 @@ exports.getMenuItem = async (req, res) => {
         message: 'Menu item not found'
       });
     }
-
-    // Populate category details
-    const category = categoriesDB.findById(item.category);
-    const itemWithCategory = {
-      ...item,
-      category: category || { _id: item.category, name: 'Unknown' }
-    };
 
     res.json({
       success: true,
@@ -125,8 +104,10 @@ exports.getMenuItem = async (req, res) => {
  */
 exports.getMenuVersion = async (req, res) => {
   try {
-    const items = menuItemsDB.findAll();
-    const categories = categoriesDB.findAll();
+    const [items, categories] = await Promise.all([
+      MenuItem.find({ isAvailable: true }),
+      Category.find({ isActive: true })
+    ]);
 
     // Calculate version based on last modified timestamp
     const allTimestamps = [
@@ -182,7 +163,7 @@ exports.createMenuItem = async (req, res) => {
     }
 
     // Validate category exists
-    const categoryExists = categoriesDB.findById(category);
+    const categoryExists = await Category.findById(category);
     if (!categoryExists) {
       return res.status(400).json({
         success: false,
@@ -197,7 +178,7 @@ exports.createMenuItem = async (req, res) => {
     }
 
     // Create menu item
-    const menuItemData = {
+    const menuItem = new MenuItem({
       name: name.trim(),
       description: description?.trim() || '',
       price: parseFloat(price),
@@ -205,13 +186,12 @@ exports.createMenuItem = async (req, res) => {
       image: finalImageUrl,
       isVeg: Boolean(isVeg),
       isAvailable: Boolean(isAvailable),
-      isBestSeller: Boolean(isBestSeller),
-      discount: parseFloat(discount) || 0,
-      createdAt: getCurrentISO(),
-      updatedAt: getCurrentISO()
-    };
-
-    const menuItem = menuItemsDB.create(menuItemData);
+      'tags.isBestseller': Boolean(isBestSeller),
+      discount: parseFloat(discount) || 0
+    });
+    
+    await menuItem.save();
+    await menuItem.populate('category', 'name slug');
 
     logger.info(`Menu item created by admin ${req.user.userId}: ${menuItem.name}`);
 
@@ -248,7 +228,7 @@ exports.updateMenuItem = async (req, res) => {
       discount
     } = req.body;
 
-    const menuItem = menuItemsDB.findById(id);
+    const menuItem = await MenuItem.findById(id);
 
     if (!menuItem) {
       return res.status(404).json({
@@ -259,7 +239,7 @@ exports.updateMenuItem = async (req, res) => {
 
     // Validate category if provided
     if (category) {
-      const categoryExists = categoriesDB.findById(category);
+      const categoryExists = await Category.findById(category);
       if (!categoryExists) {
         return res.status(400).json({
           success: false,
@@ -277,9 +257,7 @@ exports.updateMenuItem = async (req, res) => {
     }
 
     // Update menu item
-    const updateData = {
-      updatedAt: getCurrentISO()
-    };
+    const updateData = {};
 
     if (name !== undefined) updateData.name = name.trim();
     if (description !== undefined) updateData.description = description.trim();
@@ -288,10 +266,14 @@ exports.updateMenuItem = async (req, res) => {
     if (finalImageUrl !== menuItem.image) updateData.image = finalImageUrl;
     if (isVeg !== undefined) updateData.isVeg = Boolean(isVeg);
     if (isAvailable !== undefined) updateData.isAvailable = Boolean(isAvailable);
-    if (isBestSeller !== undefined) updateData.isBestSeller = Boolean(isBestSeller);
+    if (isBestSeller !== undefined) updateData['tags.isBestseller'] = Boolean(isBestSeller);
     if (discount !== undefined) updateData.discount = parseFloat(discount);
 
-    const updatedMenuItem = menuItemsDB.update(id, updateData);
+    const updatedMenuItem = await MenuItem.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true, runValidators: true }
+    ).populate('category', 'name slug');
 
     logger.info(`Menu item updated by admin ${req.user.userId}: ${updatedMenuItem.name}`);
 
@@ -317,7 +299,7 @@ exports.deleteMenuItem = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const menuItem = menuItemsDB.findById(id);
+    const menuItem = await MenuItem.findById(id);
 
     if (!menuItem) {
       return res.status(404).json({
@@ -326,7 +308,7 @@ exports.deleteMenuItem = async (req, res) => {
       });
     }
 
-    menuItemsDB.delete(id);
+    await MenuItem.findByIdAndDelete(id);
 
     logger.info(`Menu item deleted by admin ${req.user.userId}: ${menuItem.name}`);
 

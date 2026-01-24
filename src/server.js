@@ -1,6 +1,6 @@
 /**
  * Server Entry Point
- * Using JSON files instead of MongoDB
+ * Using MongoDB for data persistence
  * 
  * Supports both:
  * - Local development: starts Express server
@@ -24,7 +24,12 @@ if (isVercel) {
     logger.info(`🚀 Server running on port ${PORT} in ${config.nodeEnv} mode`);
     console.log(`\n✅ Server running on http://localhost:${PORT}`);
     console.log(`✅ API available at http://localhost:${PORT}/api`);
-    console.log(`✅ Using JSON file-based database`);
-    console.log(`📁 Data stored in backend/data/ folder\n`);
+    if (config.mongoUri && config.mongoUri !== 'mongodb://localhost:27017/hungerwood') {
+      console.log(`✅ Using MongoDB database`);
+      console.log(`📊 Database: ${config.mongoUri.replace(/\/\/.*@/, '//***@')}\n`);
+    } else {
+      console.log(`⚠️  MongoDB not configured - using default URI`);
+      console.log(`📊 Set MONGO_URI environment variable to connect to MongoDB\n`);
+    }
   });
 }

@@ -6,6 +6,11 @@
 const mongoose = require('mongoose');
 
 const menuItemSchema = new mongoose.Schema({
+  id: {
+    type: String,
+    required: [true, 'Item ID is required'],
+    trim: true
+  },
   name: {
     type: String,
     required: [true, 'Item name is required'],

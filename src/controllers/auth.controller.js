@@ -1,16 +1,15 @@
 /**
  * Authentication Controller
- * Handles OTP-based authentication using JSON files
+ * Handles OTP-based authentication using MongoDB
  */
 
 const jwt = require('jsonwebtoken');
-const JsonDB = require('../utils/jsonDB');
+const User = require('../models/User.model');
+const Address = require('../models/Address.model');
+const { sendOTP, verifyOTP: verifyOTPService } = require('../services/otp.service');
 const config = require('../config/env');
 const logger = require('../config/logger');
 const { getCurrentISO } = require('../utils/dateFormatter');
-
-const usersDB = new JsonDB('users.json');
-const otpsDB = new JsonDB('otps.json');
 
 /**
  * Generate and send OTP
@@ -19,25 +18,15 @@ exports.sendOTP = async (req, res) => {
   try {
     const { phone } = req.body;
 
-    // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = Date.now() + config.otpExpiry;
-
-    // Store OTP in JSON file
-    const otpData = otpsDB.read();
-    otpData[phone] = { otp, expiresAt };
-    otpsDB.write(otpData);
-
-    // Log OTP to console (in production, send via SMS)
-    logger.info(`📱 OTP for ${phone}: ${otp}`);
-    console.log(`\n🔐 OTP Code: ${otp}\n📱 Phone: ${phone}\n⏰ Valid for: 5 minutes\n`);
+    const result = await sendOTP(phone);
 
     res.json({
       success: true,
-      message: 'OTP sent successfully',
+      message: result.message,
       data: {
         phone,
-        expiresIn: config.otpExpiry / 1000 // seconds
+        expiresIn: config.otpExpiry / 1000, // seconds
+        ...(result.otp && { otp: result.otp }) // Only in development
       }
     });
   } catch (error) {
@@ -56,54 +45,31 @@ exports.verifyOTP = async (req, res) => {
   try {
     const { phone, otp } = req.body;
 
-    // Get stored OTP
-    const otpData = otpsDB.read();
-    const storedOTP = otpData[phone];
+    // Verify OTP using service
+    const verifyResult = await verifyOTPService(phone, otp);
 
-    if (!storedOTP) {
+    if (!verifyResult.success) {
       return res.status(400).json({
         success: false,
-        message: 'OTP not found. Please request a new one.'
+        message: verifyResult.message
       });
     }
-
-    // Check if OTP is expired
-    if (Date.now() > storedOTP.expiresAt) {
-      delete otpData[phone];
-      otpsDB.write(otpData);
-
-      return res.status(400).json({
-        success: false,
-        message: 'OTP expired. Please request a new one.'
-      });
-    }
-
-    // Verify OTP
-    if (storedOTP.otp !== otp) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid OTP. Please try again.'
-      });
-    }
-
-    // OTP is valid, delete it
-    delete otpData[phone];
-    otpsDB.write(otpData);
 
     // Find or create user
-    let user = usersDB.findOne({ phone });
+    let user = await User.findOne({ phone });
 
     if (!user) {
       // Create new user
       const role = phone === config.adminPhone ? 'admin' : 'customer';
       const name = phone === config.adminPhone ? config.adminName : 'Customer';
 
-      user = usersDB.create({
+      user = new User({
         phone,
         name,
         role,
         isActive: true
       });
+      await user.save();
 
       logger.info(`New user created: ${phone}`);
     }
@@ -120,6 +86,11 @@ exports.verifyOTP = async (req, res) => {
     );
 
     logger.info(`User logged in: ${phone}`);
+
+    // Populate addresses if they exist
+    if (user.addresses && user.addresses.length > 0) {
+      await user.populate('addresses');
+    }
 
     // Check if profile is complete
     const isProfileComplete = !!(user.email && user.addresses && user.addresses.length > 0 && user.profilePic);
@@ -153,7 +124,7 @@ exports.verifyOTP = async (req, res) => {
  */
 exports.getProfile = async (req, res) => {
   try {
-    const user = usersDB.findById(req.user.userId);
+    const user = await User.findById(req.user.userId).populate('addresses');
 
     if (!user) {
       return res.status(404).json({
@@ -168,7 +139,11 @@ exports.getProfile = async (req, res) => {
         _id: user._id,
         phone: user.phone,
         name: user.name,
-        role: user.role
+        email: user.email,
+        role: user.role,
+        addresses: user.addresses,
+        profilePic: user.profilePic,
+        isProfileComplete: !!(user.email && user.addresses && user.addresses.length > 0 && user.profilePic)
       }
     });
   } catch (error) {
@@ -205,7 +180,11 @@ exports.updateProfile = async (req, res) => {
     if (profilePic) updateData.profilePic = profilePic;
 
     // Update user
-    const user = usersDB.update(req.user.userId, updateData);
+    const user = await User.findByIdAndUpdate(
+      req.user.userId,
+      updateData,
+      { new: true, runValidators: true }
+    );
 
     if (!user) {
       return res.status(404).json({
@@ -284,26 +263,30 @@ exports.completeProfile = async (req, res) => {
       }
     }
 
-    // Create first address with default label and set as default
-    const firstAddress = {
-      id: Date.now().toString(),
+    // Create first address
+    const firstAddress = new Address({
+      user: req.user.userId,
       label: address.label || 'Home',
       street: address.street,
       city: address.city,
       state: address.state,
       pincode: address.pincode,
-      isDefault: true,
-      createdAt: getCurrentISO()
-    };
-
-    // Update user profile with addresses array
-    const user = usersDB.update(req.user.userId, {
-      name,
-      email,
-      addresses: [firstAddress],
-      profilePic,
-      isProfileComplete: true
+      isDefault: true
     });
+    await firstAddress.save();
+
+    // Update user profile
+    const user = await User.findByIdAndUpdate(
+      req.user.userId,
+      {
+        name,
+        email,
+        addresses: [firstAddress._id],
+        profilePic,
+        isProfileComplete: true
+      },
+      { new: true }
+    ).populate('addresses');
 
     if (!user) {
       return res.status(404).json({

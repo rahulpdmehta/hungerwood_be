@@ -3,22 +3,19 @@
  * Handles referral code generation and reward processing
  */
 
-const JsonDB = require('../utils/jsonDB');
+const User = require('../models/User.model');
+const WalletTransaction = require('../models/WalletTransaction.model');
 const walletService = require('./wallet.service');
-const { TRANSACTION_REASONS } = require('../models/WalletTransaction.model');
-const { WalletTransactionModel } = require('../models/WalletTransaction.model');
+const { TRANSACTION_REASONS, TRANSACTION_TYPES } = require('../models/WalletTransaction.model');
 const config = require('../config/env');
 const logger = require('../config/logger');
 const { getCurrentISO } = require('../utils/dateFormatter');
-
-const usersDB = new JsonDB('users.json');
-const walletTransactionDB = new WalletTransactionModel();
 
 class ReferralService {
     /**
      * Generate a unique referral code for a user
      */
-    generateReferralCode(userName, userId) {
+    async generateReferralCode(userName, userId) {
         // Create code from name + random string
         const namePrefix = userName
             .substring(0, 4)
@@ -29,9 +26,9 @@ class ReferralService {
         const code = `${namePrefix}${randomSuffix}`;
 
         // Check if code already exists, if so, regenerate
-        const existingUser = usersDB.findAll().find(u => u.referralCode === code);
+        const existingUser = await User.findOne({ referralCode: code });
         if (existingUser) {
-            return this.generateReferralCode(userName, userId);
+            return await this.generateReferralCode(userName, userId);
         }
 
         return code;
@@ -42,7 +39,7 @@ class ReferralService {
      */
     async getUserReferralCode(userId) {
         try {
-            const user = usersDB.findById(userId);
+            const user = await User.findById(userId);
             if (!user) {
                 throw new Error('User not found');
             }
@@ -51,8 +48,8 @@ class ReferralService {
             if (user.referralCode) {
                 return {
                     code: user.referralCode,
-                    referralCount: this.getReferralCount(userId),
-                    earnings: this.getReferralEarnings(userId)
+                    referralCount: await this.getReferralCount(userId),
+                    earnings: await this.getReferralEarnings(userId)
                 };
             }
 
@@ -60,11 +57,10 @@ class ReferralService {
             const referralCode = this.generateReferralCode(user.name || 'USER', userId);
 
             // Update user with referral code
-            const updatedUser = usersDB.update(userId, {
-                referralCode,
-                referralCount: 0,
-                referralEarnings: 0
-            });
+            user.referralCode = referralCode;
+            user.referralCount = 0;
+            user.referralEarnings = 0;
+            await user.save();
 
             logger.info(`Generated referral code for user ${userId}: ${referralCode}`);
 
@@ -84,7 +80,7 @@ class ReferralService {
      */
     async applyReferralCode(newUserId, referralCode) {
         try {
-            const newUser = usersDB.findById(newUserId);
+            const newUser = await User.findById(newUserId);
             if (!newUser) {
                 throw new Error('User not found');
             }
@@ -100,22 +96,21 @@ class ReferralService {
             }
 
             // Find referrer by code
-            const referrer = usersDB.findAll().find(u => u.referralCode === referralCode.toUpperCase());
+            const referrer = await User.findOne({ referralCode: referralCode.toUpperCase() });
             if (!referrer) {
                 throw new Error('Invalid referral code');
             }
 
             // Prevent self-referral
-            if (referrer._id === newUserId) {
+            if (referrer._id.toString() === newUserId) {
                 throw new Error('Cannot use your own referral code');
             }
 
             // Update new user with referrer information
-            usersDB.update(newUserId, {
-                referredBy: referrer._id,
-                hasUsedReferral: true,
-                referralAppliedAt: getCurrentISO()
-            });
+            newUser.referredBy = referrer._id;
+            newUser.hasUsedReferral = true;
+            newUser.referralAppliedAt = getCurrentISO();
+            await newUser.save();
 
             logger.info(`Referral code ${referralCode} applied: New user ${newUserId} referred by ${referrer._id}`);
 
@@ -140,7 +135,7 @@ class ReferralService {
      */
     async processReferralReward(order) {
         try {
-            const newUser = usersDB.findById(order.user);
+            const newUser = await User.findById(order.user);
             if (!newUser) {
                 logger.error('User not found for order:', order._id);
                 return;
@@ -153,10 +148,11 @@ class ReferralService {
             }
 
             // Check if rewards already given
-            const hasNewUserReward = walletTransactionDB.hasReferralReward(
-                newUser._id,
-                TRANSACTION_REASONS.REFERRAL_BONUS_NEW_USER
-            );
+            const hasNewUserReward = await WalletTransaction.exists({
+                user: newUser._id,
+                reason: TRANSACTION_REASONS.REFERRAL_BONUS_NEW_USER,
+                type: TRANSACTION_TYPES.CREDIT
+            });
 
             if (hasNewUserReward) {
                 logger.info('Referral rewards already processed for this user');
@@ -169,7 +165,7 @@ class ReferralService {
                 return;
             }
 
-            const referrer = usersDB.findById(newUser.referredBy);
+            const referrer = await User.findById(newUser.referredBy);
             if (!referrer) {
                 logger.error('Referrer not found:', newUser.referredBy);
                 return;
@@ -209,18 +205,14 @@ class ReferralService {
             );
 
             // Update referrer's referral stats
-            const currentCount = referrer.referralCount || 0;
-            const currentEarnings = referrer.referralEarnings || 0;
-            usersDB.update(referrer._id, {
-                referralCount: currentCount + 1,
-                referralEarnings: currentEarnings + config.referralBonusReferrer
-            });
+            referrer.referralCount = (referrer.referralCount || 0) + 1;
+            referrer.referralEarnings = (referrer.referralEarnings || 0) + config.referralBonusReferrer;
+            await referrer.save();
 
             // Mark referral as rewarded
-            usersDB.update(newUser._id, {
-                referralRewarded: true,
-                referralRewardedAt: getCurrentISO()
-            });
+            newUser.referralRewarded = true;
+            newUser.referralRewardedAt = getCurrentISO();
+            await newUser.save();
 
             logger.info(`Referral rewards processed successfully:`, {
                 newUser: newUser._id,
@@ -243,35 +235,35 @@ class ReferralService {
     /**
      * Get count of successful referrals for a user
      */
-    getReferralCount(userId) {
-        const user = usersDB.findById(userId);
+    async getReferralCount(userId) {
+        const user = await User.findById(userId);
         return user?.referralCount || 0;
     }
 
     /**
      * Get total earnings from referrals
      */
-    getReferralEarnings(userId) {
-        const user = usersDB.findById(userId);
+    async getReferralEarnings(userId) {
+        const user = await User.findById(userId);
         return user?.referralEarnings || 0;
     }
 
     /**
      * Get list of users referred by a user
      */
-    getReferredUsers(userId) {
-        const referredUsers = usersDB.findAll()
-            .filter(u => u.referredBy === userId)
-            .map(u => ({
-                id: u._id,
-                name: u.name,
-                phone: u.phone,
-                referralAppliedAt: u.referralAppliedAt,
-                referralRewarded: u.referralRewarded || false,
-                referralRewardedAt: u.referralRewardedAt
-            }));
+    async getReferredUsers(userId) {
+        const referredUsers = await User.find({ referredBy: userId })
+            .select('name phone referralAppliedAt referralRewarded referralRewardedAt')
+            .sort({ referralAppliedAt: -1 });
 
-        return referredUsers;
+        return referredUsers.map(u => ({
+            id: u._id,
+            name: u.name,
+            phone: u.phone,
+            referralAppliedAt: u.referralAppliedAt,
+            referralRewarded: u.referralRewarded || false,
+            referralRewardedAt: u.referralRewardedAt
+        }));
     }
 
     /**
@@ -279,15 +271,17 @@ class ReferralService {
      */
     async getReferralStats() {
         try {
-            const users = usersDB.findAll();
+            const [totalReferrals, rewardedReferrals, users, totalEarnings] = await Promise.all([
+                User.countDocuments({ referredBy: { $exists: true } }),
+                User.countDocuments({ referralRewarded: true }),
+                User.find({}, 'name phone referralCode referralCount referralEarnings'),
+                User.aggregate([
+                    { $group: { _id: null, total: { $sum: '$referralEarnings' } } }
+                ])
+            ]);
 
-            const totalReferrals = users.filter(u => u.referredBy).length;
-            const rewardedReferrals = users.filter(u => u.referralRewarded).length;
             const pendingReferrals = totalReferrals - rewardedReferrals;
-
-            const totalReferralEarnings = users.reduce((sum, u) => {
-                return sum + (u.referralEarnings || 0);
-            }, 0);
+            const totalReferralEarnings = totalEarnings[0]?.total || 0;
 
             const topReferrers = users
                 .filter(u => (u.referralCount || 0) > 0)

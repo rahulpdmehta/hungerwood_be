@@ -1,198 +1,134 @@
 /**
  * Banner Model
- * Data access layer for banners using JSON file storage
+ * Data access layer for banners using MongoDB
  */
 
-const fs = require('fs').promises;
-const path = require('path');
-const logger = require('../config/logger');
+const mongoose = require('mongoose');
 
-// Detect Vercel environment more reliably
-const isVercel = process.env.VERCEL === '1' || 
-                 process.env.VERCEL_ENV || 
-                 process.env.AWS_LAMBDA_FUNCTION_NAME || // Also works on Lambda
-                 __dirname.includes('/var/task'); // Vercel uses /var/task
-
-// Get data directory - use /tmp on Vercel, local directory otherwise
-const getDataDir = () => {
-  if (isVercel) {
-    return '/tmp/hungerwood-data';
+const bannerSchema = new mongoose.Schema({
+  id: {
+    type: String,
+    required: true,
+    unique: true
+  },
+  type: {
+    type: String,
+    enum: ['OFFER', 'PROMOTION', 'ANNOUNCEMENT'],
+    required: true
+  },
+  enabled: {
+    type: Boolean,
+    default: true
+  },
+  priority: {
+    type: Number,
+    default: 0
+  },
+  title: {
+    type: String,
+    required: true
+  },
+  subtitle: {
+    type: String,
+    default: ''
+  },
+  description: {
+    type: String,
+    default: ''
+  },
+  badge: {
+    type: String,
+    default: ''
+  },
+  badgeColor: {
+    type: String,
+    default: '#000000'
+  },
+  image: {
+    type: String,
+    required: true
+  },
+  backgroundColor: {
+    type: String,
+    default: '#ffffff'
+  },
+  textColor: {
+    type: String,
+    default: '#000000'
+  },
+  ctaText: {
+    type: String,
+    default: 'Learn More'
+  },
+  ctaLink: {
+    type: String,
+    default: '/'
+  },
+  validFrom: {
+    type: Date,
+    default: Date.now
+  },
+  validUntil: {
+    type: Date,
+    default: null
+  },
+  minOrderAmount: {
+    type: Number,
+    default: 0
+  },
+  discountPercent: {
+    type: Number,
+    default: 0
+  },
+  applicableCategories: {
+    type: [String],
+    default: []
+  },
+  applicableOn: {
+    type: [String],
+    default: []
   }
-  return path.join(__dirname, '../../data');
-};
+}, {
+  timestamps: true
+});
 
-const DATA_DIR = getDataDir();
+// Indexes
+bannerSchema.index({ enabled: 1, priority: -1 });
+bannerSchema.index({ validFrom: 1, validUntil: 1 });
 
-// Ensure data directory exists
-const ensureDataDir = async () => {
-  try {
-    await fs.mkdir(DATA_DIR, { recursive: true });
-  } catch (error) {
-    logger.error(`Failed to create data directory ${DATA_DIR}:`, error);
-  }
-};
+const Banner = mongoose.model('Banner', bannerSchema);
 
-const BANNERS_FILE = path.join(DATA_DIR, 'banners.json');
-
-// Initialize banners file if it doesn't exist
-const initializeBannersFile = async () => {
-  try {
-    await ensureDataDir();
-    await fs.access(BANNERS_FILE);
-  } catch (error) {
-    // File doesn't exist, create with sample data
-    const initialData = {
-      banners: [
-        {
-          id: 'banner_1',
-          type: 'OFFER',
-          enabled: true,
-          priority: 1,
-          title: 'Flat 30% Off',
-          subtitle: 'on Starters',
-          description: 'Valid on orders above ₹499',
-          badge: 'LIMITED OFFER',
-          badgeColor: '#cf6317',
-          image: 'https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?w=800&q=80',
-          backgroundColor: 'linear-gradient(135deg, #181411 0%, #2d221a 100%)',
-          textColor: '#ffffff',
-          ctaText: 'Order Now',
-          ctaLink: '/menu',
-          validFrom: '2026-01-01',
-          validUntil: '2026-12-31',
-          minOrderAmount: 499,
-          discountPercent: 30,
-          applicableCategories: ['Starters', 'Tandoor'],
-          applicableOn: [],
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-        {
-          id: 'banner_2',
-          type: 'PROMOTION',
-          enabled: true,
-          priority: 2,
-          title: 'Family Feast',
-          subtitle: 'Starter Combo',
-          description: 'Free dessert on orders above ₹799',
-          badge: 'WEEKEND SPECIAL',
-          badgeColor: '#16a34a',
-          image: 'https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?w=800&q=80',
-          backgroundColor: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
-          textColor: '#ffffff',
-          ctaText: 'Explore',
-          ctaLink: '/menu?category=Combos',
-          validFrom: '2026-01-01',
-          validUntil: '2026-12-31',
-          minOrderAmount: 799,
-          discountPercent: 0,
-          applicableCategories: [],
-          applicableOn: ['SATURDAY', 'SUNDAY'],
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-        {
-          id: 'banner_3',
-          type: 'ANNOUNCEMENT',
-          enabled: true,
-          priority: 3,
-          title: 'New Menu Alert',
-          subtitle: 'Biryani Special',
-          description: 'Authentic Gaya-style Biryani now available',
-          badge: 'NEW LAUNCH',
-          badgeColor: '#dc2626',
-          image: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=800&q=80',
-          backgroundColor: 'linear-gradient(135deg, #7c2d12 0%, #c2410c 100%)',
-          textColor: '#ffffff',
-          ctaText: 'Try Now',
-          ctaLink: '/menu?category=Biryani',
-          validFrom: '2026-01-15',
-          validUntil: '2026-02-15',
-          minOrderAmount: 0,
-          discountPercent: 0,
-          applicableCategories: ['Biryani'],
-          applicableOn: [],
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-      ],
-    };
-    await fs.writeFile(BANNERS_FILE, JSON.stringify(initialData, null, 2), 'utf8');
-    logger.info('Banners file initialized with sample data');
-  }
-};
-
-// Read banners from file
-const readBanners = async () => {
-  try {
-    await initializeBannersFile();
-    const data = await fs.readFile(BANNERS_FILE, 'utf8');
-    return JSON.parse(data);
-  } catch (error) {
-    logger.error('Error reading banners file:', error);
-    throw new Error('Failed to read banners data');
-  }
-};
-
-// Write banners to file
-const writeBanners = async (data) => {
-  try {
-    await fs.writeFile(BANNERS_FILE, JSON.stringify(data, null, 2), 'utf8');
-  } catch (error) {
-    logger.error('Error writing banners file:', error);
-    throw new Error('Failed to write banners data');
-  }
-};
-
-// Get all banners
+// Helper functions to match the old API
 const getAll = async () => {
-  const data = await readBanners();
-  return data.banners || [];
+  return await Banner.find({ enabled: true })
+    .sort({ priority: 1, createdAt: -1 });
 };
 
-// Get banner by ID
 const getById = async (id) => {
-  const data = await readBanners();
-  return data.banners.find(banner => banner.id === id) || null;
+  return await Banner.findOne({ id });
 };
 
-// Create new banner
 const create = async (bannerData) => {
-  const data = await readBanners();
-  data.banners.push(bannerData);
-  await writeBanners(data);
-  return bannerData;
+  const banner = new Banner(bannerData);
+  await banner.save();
+  return banner;
 };
 
-// Update banner
 const update = async (id, bannerData) => {
-  const data = await readBanners();
-  const index = data.banners.findIndex(banner => banner.id === id);
-  
-  if (index === -1) {
-    throw new Error('Banner not found');
-  }
-
-  data.banners[index] = bannerData;
-  await writeBanners(data);
-  return bannerData;
+  return await Banner.findOneAndUpdate(
+    { id },
+    bannerData,
+    { new: true, runValidators: true }
+  );
 };
 
-// Delete banner
 const deleteBanner = async (id) => {
-  const data = await readBanners();
-  const index = data.banners.findIndex(banner => banner.id === id);
-  
-  if (index === -1) {
-    throw new Error('Banner not found');
-  }
-
-  data.banners.splice(index, 1);
-  await writeBanners(data);
-  return true;
+  const result = await Banner.findOneAndDelete({ id });
+  return !!result;
 };
 
 module.exports = {
+  Banner,
   getAll,
   getById,
   create,

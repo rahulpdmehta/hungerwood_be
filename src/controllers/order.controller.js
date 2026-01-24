@@ -1,9 +1,11 @@
 /**
  * Order Controller
- * Handles order operations using JSON files
+ * Handles order operations using MongoDB
  */
 
-const JsonDB = require('../utils/jsonDB');
+const Order = require('../models/Order.model');
+const MenuItem = require('../models/MenuItem.model');
+const User = require('../models/User.model');
 const logger = require('../config/logger');
 const walletService = require('../services/wallet.service');
 const referralService = require('../services/referral.service');
@@ -13,10 +15,6 @@ const config = require('../config/env');
 const { validateStatusTransition, getAllowedNextStatuses } = require('../utils/orderStatusValidator');
 const { ORDER_STATUS } = require('../utils/constants');
 const { getCurrentISO, addTime } = require('../utils/dateFormatter');
-
-const ordersDB = new JsonDB('orders.json');
-const menuItemsDB = new JsonDB('menuItems.json');
-const usersDB = new JsonDB('users.json');
 
 /**
  * Create new order
@@ -108,32 +106,32 @@ exports.createOrder = async (req, res) => {
     }
 
     // Create order
-    const order = ordersDB.create({
+    const order = new Order({
+      orderId: `HW${Date.now().toString().slice(-6)}`,
       user: userId,
       items: items.map(item => ({
-        //menuItem: item.menuItem,
-        quantity: item.quantity,
-        id: item.id,
+        menuItem: item.menuItem || item.id,
         name: item.name,
-        image: item.image,
-        discount: item.discount,
-        price: item.price
+        price: item.price,
+        quantity: item.quantity,
+        addons: item.addons || []
       })),
       orderType: orderType || 'delivery',
-      deliveryAddress: deliveryAddress || null,
+      deliveryAddress: deliveryAddress || undefined,
       paymentMethod: paymentMethod || 'cash',
-      specialInstructions: specialInstructions || '',
-      itemTotal: itemTotal || 0,
+      instructions: specialInstructions || '',
+      subtotal: itemTotal || 0,
       discount: discount || 0,
-      deliveryFee: deliveryFee || 0,
+      delivery: deliveryFee || 0,
       tax: tax || 0,
-      walletUsed: walletAmount,
-      amountPayable: amountPayable,
       totalAmount: totalAmount || 0,
       status: ORDER_STATUS.RECEIVED,
-      orderNumber: `HW${Date.now().toString().slice(-6)}`,
-      estimatedDeliveryTime: addTime(new Date(), 45, 'minute') // 45 mins
+      estimatedTime: 45 // 45 mins
     });
+    
+    await order.save();
+    await order.populate('user', 'phone name');
+    await order.populate('items.menuItem', 'name image');
 
     logger.info(`Order created: ${order._id} by user ${userId}, Wallet used: ₹${walletAmount}`);
 
@@ -142,11 +140,15 @@ exports.createOrder = async (req, res) => {
       logger.error('Error processing referral reward:', err);
     });
 
+    // Convert Mongoose document to plain object and ensure ID is included
+    const orderObj = order.toObject();
+    
     res.status(201).json({
       success: true,
       message: 'Order placed successfully',
       data: {
-        ...order,
+        ...orderObj,
+        id: orderObj._id, // Ensure id field is present for frontend
         paymentBreakdown: {
           total: totalAmount,
           walletUsed: walletAmount,
@@ -170,32 +172,15 @@ exports.getMyOrders = async (req, res) => {
   try {
     const userId = req.user.userId;
 
-    const orders = ordersDB.find({ user: userId });
-
-    // Populate menu item details
-    const populatedOrders = orders.map(order => {
-      const populatedItems = order.items.map(item => {
-        const menuItem = menuItemsDB.findById(item.menuItem);
-        return {
-          ...item,
-          name: menuItem?.name || 'Unknown Item',
-          image: menuItem?.image || '',
-        };
-      });
-
-      return {
-        ...order,
-        items: populatedItems
-      };
-    });
-
-    // Sort by creation date (newest first)
-    populatedOrders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const orders = await Order.find({ user: userId })
+      .populate('items.menuItem', 'name image')
+      .populate('user', 'phone name')
+      .sort({ createdAt: -1 });
 
     res.json({
       success: true,
-      count: populatedOrders.length,
-      data: populatedOrders
+      count: orders.length,
+      data: orders
     });
   } catch (error) {
     logger.error('Get my orders error:', error);
@@ -214,7 +199,9 @@ exports.getOrder = async (req, res) => {
     const { id } = req.params;
     const userId = req.user.userId;
 
-    const order = ordersDB.findById(id);
+    const order = await Order.findById(id)
+      .populate('items.menuItem', 'name image')
+      .populate('user', 'phone name');
 
     if (!order) {
       return res.status(404).json({
@@ -224,27 +211,12 @@ exports.getOrder = async (req, res) => {
     }
 
     // Check if order belongs to user (unless admin)
-    if (order.user !== userId && req.user.role !== 'admin') {
+    if (order.user._id.toString() !== userId && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
         message: 'Access denied'
       });
     }
-
-    // Populate menu item details
-    const populatedItems = order.items.map(item => {
-      const menuItem = menuItemsDB.findById(item.menuItem);
-      return {
-        ...item,
-        name: menuItem?.name || 'Unknown Item',
-        image: menuItem?.image || '',
-      };
-    });
-
-    const populatedOrder = {
-      ...order,
-      items: populatedItems
-    };
 
     res.json({
       success: true,
@@ -266,45 +238,37 @@ exports.getAllOrders = async (req, res) => {
   try {
     const { status, orderType, page = 1, limit = 20 } = req.query;
 
-    let orders = ordersDB.findAll();
+    // Build query
+    const query = {};
+    if (status) query.status = status;
+    if (orderType) query.orderType = orderType;
 
-    // Filter by status if provided
-    if (status) {
-      orders = orders.filter(order => order.status === status);
-    }
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const orders = await Order.find(query)
+      .populate('user', 'phone name')
+      .populate('items.menuItem', 'name image')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+    
+    const total = await Order.countDocuments(query);
 
-    // Filter by order type if provided
-    if (orderType) {
-      orders = orders.filter(order => order.orderType === orderType);
-    }
-
-    // Sort by creation date (newest first)
-    orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-    // Populate user details
-    const populatedOrders = orders.map(order => {
-      const user = usersDB.findById(order.user);
-      return {
-        ...order,
-        customerName: user?.name || 'Unknown',
-        customerPhone: user?.phone || 'N/A'
-      };
-    });
-
-    // Pagination
-    const startIndex = (page - 1) * limit;
-    const endIndex = page * limit;
-    const paginatedOrders = populatedOrders.slice(startIndex, endIndex);
+    // Format response
+    const populatedOrders = orders.map(order => ({
+      ...order.toObject(),
+      customerName: order.user?.name || 'Unknown',
+      customerPhone: order.user?.phone || 'N/A'
+    }));
 
     res.json({
       success: true,
       message: 'Orders fetched successfully',
-      data: paginatedOrders,
+      data: populatedOrders,
       pagination: {
-        total: populatedOrders.length,
+        total,
         page: parseInt(page),
         limit: parseInt(limit),
-        pages: Math.ceil(populatedOrders.length / limit)
+        pages: Math.ceil(total / limit)
       }
     });
   } catch (error) {
@@ -385,7 +349,7 @@ exports.updateOrderStatus = async (req, res) => {
       });
     }
 
-    const order = ordersDB.findById(id);
+    const order = await Order.findById(id);
 
     if (!order) {
       return res.status(404).json({
@@ -416,18 +380,16 @@ exports.updateOrderStatus = async (req, res) => {
     }
 
     // Update order status and add to history
-    const updatedOrder = ordersDB.update(id, {
+    order.status = newStatus;
+    order.statusHistory.push({
       status: newStatus,
-      statusHistory: [
-        ...order.statusHistory,
-        {
-          status: newStatus,
-          timestamp: getCurrentISO(),
-          updatedBy: adminId
-        }
-      ],
-      updatedAt: getCurrentISO()
+      timestamp: getCurrentISO(),
+      updatedBy: adminId
     });
+    
+    const updatedOrder = await order.save();
+    await updatedOrder.populate('user', 'phone name');
+    await updatedOrder.populate('items.menuItem', 'name image');
 
     logger.info(`Order ${id} status updated from ${currentStatus} to ${newStatus} by admin ${adminId}`);
 

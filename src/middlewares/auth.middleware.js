@@ -3,12 +3,10 @@
  * Verifies JWT tokens and attaches user to request
  */
 
+const User = require('../models/User.model');
 const { verifyToken } = require('../utils/helpers');
 const { errorResponse } = require('../utils/helpers');
 const { HTTP_STATUS, MESSAGES } = require('../utils/constants');
-const JsonDB = require('../utils/jsonDB');
-
-const usersDB = new JsonDB('users.json');
 
 /**
  * Verify JWT token
@@ -40,7 +38,7 @@ const authenticate = async (req, res, next) => {
     }
 
     // Get user from database
-    const user = usersDB.findById(decoded.userId);
+    const user = await User.findById(decoded.userId);
 
     if (!user || !user.isActive) {
       return errorResponse(
@@ -81,7 +79,7 @@ const optionalAuthenticate = async (req, res, next) => {
       const decoded = verifyToken(token);
 
       if (decoded) {
-        const user = usersDB.findById(decoded.userId);
+        const user = await User.findById(decoded.userId);
         if (user && user.isActive) {
           req.user = {
             userId: user._id,
