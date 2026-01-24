@@ -46,10 +46,32 @@ Set these in your Vercel project settings (Settings → Environment Variables):
   - Example: `https://your-frontend.vercel.app,http://localhost:3000,http://localhost:3001,http://localhost:5173`
   - Include all your frontend domains (production, staging, localhost)
 
-### For Database (Recommended):
+### For Database (Required):
 - `MONGO_URI`: MongoDB connection string
   - Example: `mongodb+srv://username:password@cluster.mongodb.net/hungerwood?retryWrites=true&w=majority`
   - Get free MongoDB Atlas: https://www.mongodb.com/cloud/atlas
+
+#### ⚠️ IMPORTANT: MongoDB Atlas IP Whitelist
+
+**Vercel serverless functions run from dynamic IP addresses.** You must whitelist IPs in MongoDB Atlas:
+
+**Option 1: Allow All IPs (Easiest for Development)**
+1. Go to MongoDB Atlas Dashboard
+2. Click **"Network Access"** in the left sidebar
+3. Click **"Add IP Address"**
+4. Click **"Allow Access from Anywhere"** (or enter `0.0.0.0/0`)
+5. Click **"Confirm"**
+
+**Option 2: Whitelist Vercel IP Ranges (More Secure)**
+Vercel uses multiple IP ranges. You can find the current list at:
+- https://vercel.com/docs/security/deployment-protection#ip-addresses
+
+However, for simplicity, **Option 1 is recommended** for development/testing.
+
+**After whitelisting:**
+- Wait 1-2 minutes for changes to propagate
+- Redeploy your Vercel function
+- The MongoDB connection should work
 
 ### Optional (with defaults):
 - `NODE_ENV`: Set to `production` for production

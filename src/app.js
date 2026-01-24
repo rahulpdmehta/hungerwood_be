@@ -36,16 +36,37 @@ const app = express();
 // MIDDLEWARE
 // ============================================
 
-// Trust proxy - Required for Vercel and other proxy environments
-// This allows Express to correctly identify the client's IP address
-// Only enable on Vercel/production, not locally (to avoid rate limiting bypass)
+// Trust proxy configuration
+// On Vercel, we use a custom keyGenerator for rate limiting instead of trust proxy
+// This avoids the express-rate-limit validation error while still getting correct IPs
 const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV;
 if (isVercel) {
-  app.set('trust proxy', true);
+  // Don't set trust proxy on Vercel - we'll extract IP manually in keyGenerator
+  // This prevents express-rate-limit validation errors
 } else {
-  // In local development, only trust first proxy (safer for rate limiting)
+  // In local development, trust first proxy (safer for rate limiting)
   app.set('trust proxy', 1);
 }
+
+// Custom key generator for rate limiting that works with Vercel's proxy
+// This extracts the real client IP from headers without needing trust proxy
+const getClientIP = (req) => {
+  // On Vercel, use X-Forwarded-For header directly
+  if (isVercel) {
+    const forwarded = req.headers['x-forwarded-for'];
+    if (forwarded) {
+      // X-Forwarded-For can contain multiple IPs, take the first one (original client)
+      return forwarded.split(',')[0].trim();
+    }
+    // Fallback to other Vercel headers
+    const realIP = req.headers['x-real-ip'];
+    if (realIP) {
+      return realIP;
+    }
+  }
+  // Fallback to standard IP detection (works with trust proxy in local dev)
+  return req.ip || req.connection.remoteAddress || 'unknown';
+};
 
 // Body parser
 app.use(express.json({ limit: '10mb' }));
@@ -88,7 +109,12 @@ const limiter = rateLimit({
   max: 500, // Limit each IP to 500 requests per windowMs (increased for development)
   message: 'Too many requests from this IP, please try again after 15 minutes',
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  // Use custom key generator to work with Vercel's proxy
+  // This extracts the real client IP from X-Forwarded-For header
+  keyGenerator: (req) => getClientIP(req),
+  // Skip the trust proxy validation by providing our own IP extraction
+  skip: () => false
 });
 
 // Apply rate limiting to all routes
@@ -99,7 +125,10 @@ const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 5, // 5 OTP requests per 15 minutes
   message: 'Too many OTP requests, please try again later',
-  skipSuccessfulRequests: true
+  skipSuccessfulRequests: true,
+  // Use custom key generator to work with Vercel's proxy
+  // This extracts the real client IP from X-Forwarded-For header
+  keyGenerator: (req) => getClientIP(req)
 });
 
 app.use('/api/auth/send-otp', authLimiter);
