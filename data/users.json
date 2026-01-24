@@ -1,0 +1,293 @@
+[
+  {
+    "_id": "user1",
+    "phone": "9999999999",
+    "name": "Admin User",
+    "email": "admin@hungerwood.com",
+    "addresses": [
+      {
+        "id": "1",
+        "label": "Home",
+        "street": "123 Admin Street",
+        "city": "Gaya",
+        "state": "Bihar",
+        "pincode": "823001",
+        "isDefault": true,
+        "createdAt": "2026-01-01T00:00:00.000Z"
+      }
+    ],
+    "profilePic": "https://ui-avatars.com/api/?name=Admin&background=B45309&color=fff&size=200",
+    "role": "ADMIN",
+    "isActive": true,
+    "isProfileComplete": true,
+    "createdAt": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "phone": "8802512442",
+    "name": "Rahul Prasad Mehta",
+    "role": "customer",
+    "isActive": true,
+    "_id": "1769149740051_bmqozqq84",
+    "createdAt": "2026-01-23T06:29:00.051Z",
+    "email": "rahulkumarsobh@gmail.com",
+    "addresses": [
+      {
+        "id": "2",
+        "label": "Home",
+        "street": "HungerWood",
+        "city": "Gaya",
+        "state": "Bihar",
+        "pincode": "824201",
+        "isDefault": true,
+        "createdAt": "2026-01-23T06:53:48.846Z"
+      }
+    ],
+    "profilePic": "https://ui-avatars.com/api/?name=User&background=B45309&color=fff&size=200",
+    "isProfileComplete": true,
+    "updatedAt": "2026-01-23T06:53:48.846Z"
+  },
+  {
+    "phone": "9540648989",
+    "name": "sudhanshu ranjan kumar",
+    "role": "customer",
+    "isActive": true,
+    "_id": "1769150085880_tyrdld97k",
+    "createdAt": "2026-01-23T06:34:45.880Z",
+    "email": "info@hungerwood.com",
+    "addresses": [
+      {
+        "id": "1769169125177",
+        "label": "Home",
+        "street": "HungerWood",
+        "city": "Gaya",
+        "state": "Bihar",
+        "pincode": "824201",
+        "isDefault": true,
+        "createdAt": "2026-01-23T11:52:05.177Z"
+      },
+      {
+        "id": "1769226397993",
+        "label": "paytm_team",
+        "street": "HungerWood",
+        "city": "Gaya",
+        "state": "Bihar",
+        "pincode": "824201",
+        "isDefault": false,
+        "createdAt": "2026-01-24T03:46:37.993Z"
+      }
+    ],
+    "profilePic": "https://ui-avatars.com/api/?name=User&background=B45309&color=fff&size=200",
+    "isProfileComplete": true,
+    "updatedAt": "2026-01-24T03:46:37.994Z",
+    "referralCode": "SUDHXDIE",
+    "referralCount": 3,
+    "referralEarnings": 150,
+    "walletBalance": 80
+  },
+  {
+    "phone": "9155992424",
+    "name": "HungerWood2",
+    "role": "customer",
+    "isActive": true,
+    "_id": "1769152595967_qpohr492u",
+    "createdAt": "2026-01-23T07:16:35.967Z",
+    "email": "info@hungerwood.com",
+    "addresses": [
+      {
+        "id": "3",
+        "label": "Restaurant",
+        "street": "HungerWood",
+        "city": "Gaya",
+        "state": "Bihar",
+        "pincode": "824201",
+        "isDefault": false,
+        "createdAt": "2026-01-23T07:17:02.100Z",
+        "updatedAt": "2026-01-23T07:50:34.645Z"
+      },
+      {
+        "id": "1769154613349",
+        "label": "Home",
+        "street": "Buniyad Bigha",
+        "city": "Gaya",
+        "state": "Bihar",
+        "pincode": "824201",
+        "isDefault": true,
+        "createdAt": "2026-01-23T07:50:13.349Z"
+      }
+    ],
+    "profilePic": "https://ui-avatars.com/api/?name=User&background=B45309&color=fff&size=200",
+    "isProfileComplete": true,
+    "updatedAt": "2026-01-23T07:50:34.646Z"
+  },
+  {
+    "phone": "9939992323",
+    "name": "rahulpdmehta",
+    "role": "customer",
+    "isActive": true,
+    "_id": "1769170576991_qt9799hvz",
+    "createdAt": "2026-01-23T12:16:16.991Z",
+    "email": "rahulpdmehta@gmail.com",
+    "addresses": [
+      {
+        "id": "1769170712091",
+        "label": "Home",
+        "street": "fghj",
+        "city": "gh",
+        "state": "gjhk",
+        "pincode": "345678",
+        "isDefault": true,
+        "createdAt": "2026-01-23T12:18:32.091Z"
+      }
+    ],
+    "profilePic": "https://ui-avatars.com/api/?name=User&background=B45309&color=fff&size=200",
+    "isProfileComplete": true,
+    "updatedAt": "2026-01-23T12:18:32.091Z"
+  },
+  {
+    "phone": "9832483242",
+    "name": "rahulpdmehta",
+    "role": "customer",
+    "isActive": true,
+    "_id": "1769170826452_0nt9wzrxb",
+    "createdAt": "2026-01-23T12:20:26.452Z",
+    "email": "info@hungerwood.com",
+    "addresses": [
+      {
+        "id": "1769170858101",
+        "label": "Home",
+        "street": "fghj",
+        "city": "gh",
+        "state": "gjhk",
+        "pincode": "345678",
+        "isDefault": true,
+        "createdAt": "2026-01-23T12:20:58.101Z"
+      }
+    ],
+    "profilePic": "https://ui-avatars.com/api/?name=User&background=B45309&color=fff&size=200",
+    "isProfileComplete": true,
+    "updatedAt": "2026-01-23T12:21:22.491Z",
+    "referralCode": "RAHUM4RA",
+    "referralCount": 0,
+    "referralEarnings": 0
+  },
+  {
+    "phone": "8201830038",
+    "name": "rahulpdmehta",
+    "role": "customer",
+    "isActive": true,
+    "_id": "1769171057941_8t6q6vmdm",
+    "createdAt": "2026-01-23T12:24:17.941Z",
+    "email": "info@hungerwood.com",
+    "addresses": [
+      {
+        "id": "1769171070951",
+        "label": "Home",
+        "street": "fghj",
+        "city": "gh",
+        "state": "gjhk",
+        "pincode": "345678",
+        "isDefault": true,
+        "createdAt": "2026-01-23T12:24:30.951Z"
+      }
+    ],
+    "profilePic": "https://ui-avatars.com/api/?name=User&background=B45309&color=fff&size=200",
+    "isProfileComplete": true,
+    "updatedAt": "2026-01-23T12:24:30.951Z"
+  },
+  {
+    "phone": "6782393922",
+    "name": "dsdfds",
+    "role": "customer",
+    "isActive": true,
+    "_id": "1769171090644_ep0l43o18",
+    "createdAt": "2026-01-23T12:24:50.644Z",
+    "referredBy": "1769150085880_tyrdld97k",
+    "hasUsedReferral": true,
+    "referralAppliedAt": "2026-01-23T12:25:10.438Z",
+    "updatedAt": "2026-01-23T12:28:17.846Z",
+    "email": "info@hungerwood.com",
+    "addresses": [
+      {
+        "id": "1769171110439",
+        "label": "Home",
+        "street": "fdsf",
+        "city": "fsdf",
+        "state": "fsdfs",
+        "pincode": "345678",
+        "isDefault": true,
+        "createdAt": "2026-01-23T12:25:10.439Z"
+      }
+    ],
+    "profilePic": "https://ui-avatars.com/api/?name=User&background=B45309&color=fff&size=200",
+    "isProfileComplete": true,
+    "referralCode": "DSDFRQI4",
+    "referralCount": 0,
+    "referralEarnings": 0,
+    "walletBalance": 25,
+    "referralRewarded": true,
+    "referralRewardedAt": "2026-01-23T12:28:17.845Z"
+  },
+  {
+    "phone": "9829302824",
+    "name": "Test User 1",
+    "role": "customer",
+    "isActive": true,
+    "_id": "1769177339567_6kbfwftaj",
+    "createdAt": "2026-01-23T14:08:59.568Z",
+    "referredBy": "1769150085880_tyrdld97k",
+    "hasUsedReferral": true,
+    "referralAppliedAt": "2026-01-23T14:09:33.298Z",
+    "updatedAt": "2026-01-23T14:11:03.845Z",
+    "email": "user1@gmail.com",
+    "addresses": [
+      {
+        "id": "1769177373299",
+        "label": "Home",
+        "street": "Test",
+        "city": "Gaya",
+        "state": "Bihar",
+        "pincode": "824201",
+        "isDefault": true,
+        "createdAt": "2026-01-23T14:09:33.299Z"
+      }
+    ],
+    "profilePic": "https://ui-avatars.com/api/?name=User&background=B45309&color=fff&size=200",
+    "isProfileComplete": true,
+    "walletBalance": 50,
+    "referralRewarded": true,
+    "referralRewardedAt": "2026-01-23T14:11:03.844Z"
+  },
+  {
+    "phone": "6976876977",
+    "name": "test user 2",
+    "role": "customer",
+    "isActive": true,
+    "_id": "1769181236495_rwt1ojufc",
+    "createdAt": "2026-01-23T15:13:56.495Z",
+    "referredBy": "1769150085880_tyrdld97k",
+    "hasUsedReferral": true,
+    "referralAppliedAt": "2026-01-23T15:14:50.849Z",
+    "updatedAt": "2026-01-23T15:44:43.684Z",
+    "email": "testuser@gmail.com",
+    "addresses": [
+      {
+        "id": "1769181290850",
+        "label": "Home",
+        "street": "HungerWood",
+        "city": "Gaya",
+        "state": "Bihar",
+        "pincode": "824201",
+        "isDefault": true,
+        "createdAt": "2026-01-23T15:14:50.850Z"
+      }
+    ],
+    "profilePic": "https://ui-avatars.com/api/?name=User&background=B45309&color=fff&size=200",
+    "isProfileComplete": true,
+    "walletBalance": 0,
+    "referralRewarded": true,
+    "referralRewardedAt": "2026-01-23T15:16:07.718Z",
+    "referralCode": "TESTY8JV",
+    "referralCount": 0,
+    "referralEarnings": 0
+  }
+]

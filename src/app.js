@@ -1,0 +1,162 @@
+/**
+ * Express Application Configuration
+ * Using JSON files instead of MongoDB
+ */
+
+const express = require('express');
+const cors = require('cors');
+const rateLimit = require('express-rate-limit');
+const config = require('./config/env');
+const logger = require('./config/logger');
+const { notFound, errorHandler } = require('./middlewares/error.middleware');
+const { getCurrentISO } = require('./utils/dateFormatter');
+
+// Import routes
+const authRoutes = require('./routes/auth.routes');
+const menuRoutes = require('./routes/menu.routes');
+const orderRoutes = require('./routes/order.routes');
+const adminRoutes = require('./routes/admin.routes');
+const addressRoutes = require('./routes/address.routes');
+const sseRoutes = require('./routes/sse.routes');
+const bannerRoutes = require('./routes/banner.routes');
+
+// Initialize app
+const app = express();
+
+// ============================================
+// MIDDLEWARE
+// ============================================
+
+// Body parser
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
+
+// CORS configuration
+app.use(cors({
+  origin: config.allowedOrigins,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 500, // Limit each IP to 500 requests per windowMs (increased for development)
+  message: 'Too many requests from this IP, please try again after 15 minutes',
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+// Apply rate limiting to all routes
+app.use('/api/', limiter);
+
+// Stricter rate limiting for auth routes
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // 5 OTP requests per 15 minutes
+  message: 'Too many OTP requests, please try again later',
+  skipSuccessfulRequests: true
+});
+
+app.use('/api/auth/send-otp', authLimiter);
+
+// Request logging middleware (development only)
+if (config.nodeEnv === 'development') {
+  app.use((req, res, next) => {
+    logger.debug(`${req.method} ${req.path}`);
+    next();
+  });
+}
+
+// ============================================
+// ROUTES
+// ============================================
+
+// Health check
+app.get('/health', (req, res) => {
+  res.json({
+    success: true,
+    message: 'HungerWood API is running',
+    timestamp: getCurrentISO(),
+    environment: config.nodeEnv
+  });
+});
+
+// API routes
+app.use('/api/auth', authRoutes);
+app.use('/api/menu', menuRoutes);
+app.use('/api/banners', bannerRoutes);
+
+// SSE routes MUST be registered before /api/orders to avoid auth middleware
+// (Server-Sent Events for real-time updates - no auth required)
+app.use('/api', sseRoutes);
+
+app.use('/api/orders', orderRoutes);
+app.use('/api/wallet', require('./routes/wallet.routes'));
+app.use('/api/admin', adminRoutes);
+app.use('/api/addresses', addressRoutes);
+
+// API documentation (simple)
+app.get('/api', (req, res) => {
+  res.json({
+    name: 'HungerWood API',
+    version: '1.0.0',
+    description: 'Restaurant Food Ordering API',
+    endpoints: {
+      auth: '/api/auth',
+      menu: '/api/menu',
+      orders: '/api/orders',
+      wallet: '/api/wallet',
+      banners: '/api/banners',
+      admin: '/api/admin'
+    },
+    documentation: {
+      health: 'GET /health',
+      auth: {
+        sendOTP: 'POST /api/auth/send-otp',
+        verifyOTP: 'POST /api/auth/verify-otp',
+        profile: 'GET /api/auth/me',
+        updateProfile: 'PATCH /api/auth/profile'
+      },
+      menu: {
+        categories: 'GET /api/menu/categories',
+        items: 'GET /api/menu/items',
+        item: 'GET /api/menu/items/:id'
+      },
+      orders: {
+        create: 'POST /api/orders',
+        myOrders: 'GET /api/orders/my',
+        order: 'GET /api/orders/:id'
+      },
+      banners: {
+        active: 'GET /api/banners/active',
+        all: 'GET /api/banners/all',
+        banner: 'GET /api/banners/:id',
+        create: 'POST /api/banners (admin)',
+        update: 'PUT /api/banners/:id (admin)',
+        toggle: 'PATCH /api/banners/:id/toggle (admin)',
+        delete: 'DELETE /api/banners/:id (admin)'
+      },
+      admin: {
+        orders: 'GET /api/admin/orders',
+        updateStatus: 'PATCH /api/admin/orders/:id/status',
+        createMenuItem: 'POST /api/admin/menu',
+        updateMenuItem: 'PATCH /api/admin/menu/:id',
+        deleteMenuItem: 'DELETE /api/admin/menu/:id'
+      }
+    }
+  });
+});
+
+// ============================================
+// ERROR HANDLING
+// ============================================
+
+// 404 handler
+app.use(notFound);
+
+// Global error handler
+app.use(errorHandler);
+
+module.exports = app;
