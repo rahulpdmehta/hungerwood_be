@@ -43,8 +43,9 @@ Set these in your Vercel project settings (Settings → Environment Variables):
 
 ### Required for Production:
 - `ALLOWED_ORIGINS`: Comma-separated list of allowed frontend origins
-  - Example: `https://your-frontend.vercel.app,http://localhost:3000,http://localhost:3001,http://localhost:5173`
+  - Example: `https://hungerwood-fe.vercel.app,http://localhost:3000,http://localhost:3001,http://localhost:5173`
   - Include all your frontend domains (production, staging, localhost)
+  - **Note**: Vercel preview deployments (e.g., `*-git-*.vercel.app`) are automatically allowed if the base domain is in the list
 
 ### For Database (Required):
 - `MONGO_URI`: MongoDB connection string

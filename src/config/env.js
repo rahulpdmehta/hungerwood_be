@@ -32,7 +32,12 @@ module.exports = {
   // CORS
   allowedOrigins: process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
-    : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:3001'],
+    : [
+        'http://localhost:5173',
+        'http://localhost:3000',
+        'http://localhost:3001',
+        'https://hungerwood-fe.vercel.app'
+      ],
 
   // Wallet & Referral
   referralBonusReferrer: parseInt(process.env.REFERRAL_BONUS_REFERRER) || 50,

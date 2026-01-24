@@ -92,6 +92,27 @@ const corsOptions = {
       return callback(null, true);
     }
     
+    // Allow Vercel preview deployments (e.g., hungerwood-fe-git-main.vercel.app)
+    // This allows all preview deployments without needing to add each one manually
+    if (origin.includes('.vercel.app')) {
+      // Extract the base domain (e.g., hungerwood-fe from hungerwood-fe-git-main.vercel.app)
+      const vercelBaseDomain = origin.match(/https?:\/\/([^.]+)\.vercel\.app/);
+      if (vercelBaseDomain) {
+        const baseName = vercelBaseDomain[1].split('-git-')[0]; // Remove git branch suffix
+        // Check if any allowed origin matches this base domain
+        const isAllowedVercelDomain = config.allowedOrigins.some(allowedOrigin => {
+          if (allowedOrigin.includes('.vercel.app')) {
+            const allowedBase = allowedOrigin.match(/https?:\/\/([^.]+)\.vercel\.app/);
+            return allowedBase && allowedBase[1].split('-git-')[0] === baseName;
+          }
+          return false;
+        });
+        if (isAllowedVercelDomain) {
+          return callback(null, true);
+        }
+      }
+    }
+    
     // Reject other origins
     callback(new Error('Not allowed by CORS'));
   },
