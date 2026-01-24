@@ -7,24 +7,41 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-// Use /tmp on Vercel (writable), or uploads directory locally
-const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV;
-const uploadsDir = isVercel 
-  ? '/tmp/hungerwood-uploads' 
-  : path.join(__dirname, '../../uploads');
+// Detect Vercel environment more reliably
+const isVercel = process.env.VERCEL === '1' || 
+                 process.env.VERCEL_ENV || 
+                 process.env.AWS_LAMBDA_FUNCTION_NAME || // Also works on Lambda
+                 __dirname.includes('/var/task'); // Vercel uses /var/task
 
-// Ensure uploads directory exists
-if (!fs.existsSync(uploadsDir)) {
-  try {
-    fs.mkdirSync(uploadsDir, { recursive: true });
-  } catch (error) {
-    console.error(`Failed to create uploads directory ${uploadsDir}:`, error);
+// Get uploads directory - use /tmp on Vercel, local directory otherwise
+const getUploadsDir = () => {
+  if (isVercel) {
+    return '/tmp/hungerwood-uploads';
   }
-}
+  return path.join(__dirname, '../../uploads');
+};
 
-// Configure storage
+// Lazy directory creation
+let uploadsDirInitialized = false;
+const ensureUploadsDir = (dir) => {
+  if (!uploadsDirInitialized) {
+    try {
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      uploadsDirInitialized = true;
+    } catch (error) {
+      console.error(`Failed to create uploads directory ${dir}:`, error);
+      // Don't throw - will use memory storage as fallback
+    }
+  }
+};
+
+// Configure storage with lazy directory creation
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
+    const uploadsDir = getUploadsDir();
+    ensureUploadsDir(uploadsDir);
     cb(null, uploadsDir);
   },
   filename: function (req, file, cb) {

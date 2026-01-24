@@ -7,11 +7,21 @@ const fs = require('fs');
 const path = require('path');
 const { getCurrentISO } = require('./dateFormatter');
 
-// Use /tmp on Vercel (writable), or data directory locally
-const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV;
-const DATA_DIR = isVercel 
-    ? '/tmp/hungerwood-data' 
-    : path.join(__dirname, '../../data');
+// Detect Vercel environment more reliably
+const isVercel = process.env.VERCEL === '1' || 
+                 process.env.VERCEL_ENV || 
+                 process.env.AWS_LAMBDA_FUNCTION_NAME || // Also works on Lambda
+                 __dirname.includes('/var/task'); // Vercel uses /var/task
+
+// Get data directory - use /tmp on Vercel, local directory otherwise
+const getDataDir = () => {
+  if (isVercel) {
+    return '/tmp/hungerwood-data';
+  }
+  return path.join(__dirname, '../../data');
+};
+
+const DATA_DIR = getDataDir();
 
 // Ensure data directory exists (lazy initialization to avoid blocking)
 let dataDirInitialized = false;
