@@ -38,8 +38,28 @@ exports.getMenuItems = async (req, res) => {
     // Build query
     const query = { isAvailable: true };
     
-    if (category) {
-      query.category = category;
+    if (category && category !== 'All') {
+      // Try to find category by name or slug first
+      const categoryDoc = await Category.findOne({
+        $or: [
+          { name: { $regex: new RegExp(`^${category}$`, 'i') } },
+          { slug: { $regex: new RegExp(`^${category}$`, 'i') } }
+        ]
+      });
+      
+      if (categoryDoc) {
+        // Category found - query by ObjectId or string match
+        query.$or = [
+          { category: categoryDoc._id },
+          { category: categoryDoc.name },
+          { category: categoryDoc.slug }
+        ];
+      } else {
+        // Category not found in Category collection, try direct string match
+        query.$or = [
+          { category: { $regex: new RegExp(`^${category}$`, 'i') } }
+        ];
+      }
     }
     
     if (isVeg !== undefined) {
@@ -53,7 +73,61 @@ exports.getMenuItems = async (req, res) => {
       ];
     }
 
-    let items = await MenuItem.find(query).populate('category', 'name slug').sort({ createdAt: -1 });
+    let items = await MenuItem.find(query).populate({
+      path: 'category',
+      select: 'name slug order',
+      model: 'Category'
+    }).sort({ createdAt: -1 });
+
+    // Get all categories for lookup
+    const allCategories = await Category.find({ isActive: true });
+    const categoryMap = {};
+    allCategories.forEach(cat => {
+      categoryMap[cat._id.toString()] = cat;
+      categoryMap[cat.name.toLowerCase()] = cat;
+      categoryMap[cat.slug] = cat;
+    });
+
+    // Ensure category is included - handle both ObjectId references and string categories
+    items = items.map(item => {
+      const itemObj = item.toObject ? item.toObject() : item;
+      
+      // If category is a populated object with name, use it
+      if (itemObj.category && typeof itemObj.category === 'object' && itemObj.category.name) {
+        // Already populated, keep it
+        return itemObj;
+      }
+      
+      // If category is a string (name or slug), look it up
+      if (typeof itemObj.category === 'string') {
+        const foundCategory = categoryMap[itemObj.category.toLowerCase()];
+        if (foundCategory) {
+          itemObj.category = {
+            name: foundCategory.name,
+            slug: foundCategory.slug,
+            order: foundCategory.order || 0
+          };
+          return itemObj;
+        }
+      }
+      
+      // If category is an ObjectId that wasn't populated, try to find it
+      if (itemObj.category && typeof itemObj.category === 'object' && itemObj.category._id) {
+        const foundCategory = categoryMap[itemObj.category._id.toString()];
+        if (foundCategory) {
+          itemObj.category = {
+            name: foundCategory.name,
+            slug: foundCategory.slug,
+            order: foundCategory.order || 0
+          };
+          return itemObj;
+        }
+      }
+      
+      // Default fallback
+      itemObj.category = { name: 'All', slug: 'all', order: 0 };
+      return itemObj;
+    });
 
     res.json({
       success: true,
@@ -76,7 +150,7 @@ exports.getMenuItem = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const item = await MenuItem.findById(id).populate('category', 'name slug');
+    const item = await MenuItem.findOne({ $or: [{ _id: id }, { id: id }] }).populate('category', 'name slug order');
 
     if (!item) {
       return res.status(404).json({
@@ -85,9 +159,51 @@ exports.getMenuItem = async (req, res) => {
       });
     }
 
+    const itemObj = item.toObject ? item.toObject() : item;
+    
+    // Get all categories for lookup
+    const allCategories = await Category.find({ isActive: true });
+    const categoryMap = {};
+    allCategories.forEach(cat => {
+      categoryMap[cat._id.toString()] = cat;
+      categoryMap[cat.name.toLowerCase()] = cat;
+      categoryMap[cat.slug] = cat;
+    });
+    
+    // Handle category - support both ObjectId references and string categories
+    if (itemObj.category && typeof itemObj.category === 'object' && itemObj.category.name) {
+      // Already populated, keep it
+    } else if (typeof itemObj.category === 'string') {
+      // Category is a string, look it up
+      const foundCategory = categoryMap[itemObj.category.toLowerCase()];
+      if (foundCategory) {
+        itemObj.category = {
+          name: foundCategory.name,
+          slug: foundCategory.slug,
+          order: foundCategory.order || 0
+        };
+      } else {
+        itemObj.category = { name: 'All', slug: 'all', order: 0 };
+      }
+    } else if (itemObj.category && typeof itemObj.category === 'object' && itemObj.category._id) {
+      // ObjectId that wasn't populated
+      const foundCategory = categoryMap[itemObj.category._id.toString()];
+      if (foundCategory) {
+        itemObj.category = {
+          name: foundCategory.name,
+          slug: foundCategory.slug,
+          order: foundCategory.order || 0
+        };
+      } else {
+        itemObj.category = { name: 'All', slug: 'all', order: 0 };
+      }
+    } else {
+      itemObj.category = { name: 'All', slug: 'all', order: 0 };
+    }
+
     res.json({
       success: true,
-      data: itemWithCategory
+      data: itemObj
     });
   } catch (error) {
     console.error('Get menu item error:', error);
