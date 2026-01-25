@@ -44,6 +44,36 @@ exports.createOrder = async (req, res) => {
       });
     }
 
+    // Prevent duplicate orders: Check if user placed an identical order within last 5 seconds
+    const fiveSecondsAgo = new Date(Date.now() - 5000);
+    const recentOrder = await Order.findOne({
+      user: userId,
+      createdAt: { $gte: fiveSecondsAgo },
+      status: ORDER_STATUS.RECEIVED,
+      totalAmount: totalAmount,
+      'items.0.menuItem': items[0]?.menuItem || items[0]?.id, // Check first item matches
+    }).sort({ createdAt: -1 });
+
+    if (recentOrder) {
+      // Check if items are identical (same items, same quantities)
+      const itemsMatch = recentOrder.items.length === items.length &&
+        items.every((item, index) => {
+          const recentItem = recentOrder.items[index];
+          const menuItemId = item.menuItem || item.id;
+          return recentItem.menuItem?.toString() === menuItemId?.toString() &&
+                 recentItem.quantity === item.quantity;
+        });
+
+      if (itemsMatch) {
+        logger.warn(`Duplicate order attempt detected for user ${userId} within 5 seconds`);
+        return res.status(409).json({
+          success: false,
+          message: 'Duplicate order detected. Please wait a moment before placing the same order again.',
+          existingOrderId: recentOrder.orderId
+        });
+      }
+    }
+
     // Validate each item has required fields
     const invalidItems = items.filter(item => !item.menuItem || !item.quantity || !item.price);
     if (invalidItems.length > 0) {

@@ -250,6 +250,16 @@ exports.createMenuItem = async (req, res) => {
       finalImageUrl = `/uploads/${req.file.filename}`;
     }
 
+    // Helper function to parse boolean from form data (handles string "true"/"false")
+    const parseBoolean = (value) => {
+      if (value === undefined || value === null) return false;
+      if (typeof value === 'boolean') return value;
+      if (typeof value === 'string') {
+        return value.toLowerCase() === 'true' || value === '1';
+      }
+      return Boolean(value);
+    };
+
     // Create menu item
     const menuItem = new MenuItem({
       name: name.trim(),
@@ -257,9 +267,9 @@ exports.createMenuItem = async (req, res) => {
       price: parseFloat(price),
       category,
       image: finalImageUrl,
-      isVeg: Boolean(isVeg),
-      isAvailable: Boolean(isAvailable),
-      'tags.isBestseller': Boolean(isBestSeller),
+      isVeg: parseBoolean(isVeg),
+      isAvailable: parseBoolean(isAvailable),
+      'tags.isBestseller': parseBoolean(isBestSeller),
       discount: parseFloat(discount) || 0
     });
     
@@ -340,15 +350,32 @@ exports.updateMenuItem = async (req, res) => {
     // Update menu item
     const updateData = {};
 
+    // Helper function to parse boolean from form data (handles string "true"/"false")
+    const parseBoolean = (value) => {
+      if (value === undefined || value === null) return undefined;
+      if (typeof value === 'boolean') return value;
+      if (typeof value === 'string') {
+        return value.toLowerCase() === 'true' || value === '1';
+      }
+      return Boolean(value);
+    };
+
     if (name !== undefined) updateData.name = name.trim();
     if (description !== undefined) updateData.description = description.trim();
     if (price !== undefined) updateData.price = parseFloat(price);
     if (category !== undefined) updateData.category = category;
     if (finalImageUrl !== menuItem.image) updateData.image = finalImageUrl;
-    if (isVeg !== undefined) updateData.isVeg = Boolean(isVeg);
-    if (isAvailable !== undefined) updateData.isAvailable = Boolean(isAvailable);
-    if (isBestSeller !== undefined) updateData['tags.isBestseller'] = Boolean(isBestSeller);
-    if (discount !== undefined) updateData.discount = parseFloat(discount);
+    if (isVeg !== undefined) updateData.isVeg = parseBoolean(isVeg);
+    if (isAvailable !== undefined) updateData.isAvailable = parseBoolean(isAvailable);
+    if (isBestSeller !== undefined) updateData['tags.isBestseller'] = parseBoolean(isBestSeller);
+    // Handle discount - allow 0 as a valid value
+    if (discount !== undefined && discount !== null && discount !== '') {
+      const discountValue = parseFloat(discount);
+      updateData.discount = isNaN(discountValue) ? 0 : Math.max(0, Math.min(100, discountValue));
+    } else if (discount === '' || discount === null) {
+      // Explicitly set to 0 if empty string or null
+      updateData.discount = 0;
+    }
 
     // Use the MongoDB _id for the update
     const updatedMenuItem = await MenuItem.findByIdAndUpdate(
@@ -424,7 +451,15 @@ exports.toggleAvailability = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const menuItem = menuItemsDB.findById(id);
+    // Try to find by string id field first (since items use string IDs like "item9")
+    // Then try by MongoDB _id if that fails
+    let menuItem = await MenuItem.findOne({ id: id });
+    if (!menuItem) {
+      // Only try findById if the id looks like a valid ObjectId (24 hex characters)
+      if (id.match(/^[0-9a-fA-F]{24}$/)) {
+        menuItem = await MenuItem.findById(id);
+      }
+    }
 
     if (!menuItem) {
       return res.status(404).json({
@@ -433,10 +468,12 @@ exports.toggleAvailability = async (req, res) => {
       });
     }
 
-    const updatedMenuItem = menuItemsDB.update(id, {
-      isAvailable: !menuItem.isAvailable,
-      updatedAt: getCurrentISO()
-    });
+    // Toggle availability using MongoDB _id
+    const updatedMenuItem = await MenuItem.findByIdAndUpdate(
+      menuItem._id,
+      { isAvailable: !menuItem.isAvailable },
+      { new: true, runValidators: true }
+    ).populate('category', 'name slug');
 
     logger.info(`Menu item availability toggled by admin ${req.user.userId}: ${updatedMenuItem.name} - ${updatedMenuItem.isAvailable ? 'Available' : 'Unavailable'}`);
 
@@ -449,7 +486,8 @@ exports.toggleAvailability = async (req, res) => {
     logger.error('Toggle availability error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to toggle availability'
+      message: 'Failed to toggle availability',
+      error: error.message
     });
   }
 };

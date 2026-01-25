@@ -223,6 +223,7 @@ app.get('/health', (req, res) => {
 
 // API routes
 app.use('/api/auth', authRoutes);
+app.use('/api/versions', require('./routes/version.routes')); // Public version checking endpoint
 app.use('/api/menu', menuRoutes);
 app.use('/api/banners', bannerRoutes);
 
