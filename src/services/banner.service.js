@@ -99,7 +99,7 @@ const createBanner = async (bannerData) => {
       subtitle: bannerData.subtitle || '',
       description: bannerData.description || '',
       badge: bannerData.badge || '',
-      badgeColor: bannerData.badgeColor || '#cf6317',
+      badgeColor: bannerData.badgeColor || '#543918',
       image: bannerData.image,
       backgroundColor: bannerData.backgroundColor || 'linear-gradient(135deg, #181411 0%, #2d221a 100%)',
       textColor: bannerData.textColor || '#ffffff',
