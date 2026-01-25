@@ -28,7 +28,15 @@ exports.streamOrderStatus = async (req, res) => {
         }
 
         // Verify order exists
-        const order = await Order.findById(id);
+        // Try to find by orderId first (string like "HW222463"), then by MongoDB _id
+        let order = await Order.findOne({ orderId: id });
+        if (!order) {
+            // Only try findById if the id looks like a valid ObjectId (24 hex characters)
+            if (id.match(/^[0-9a-fA-F]{24}$/)) {
+                order = await Order.findById(id);
+            }
+        }
+        
         if (!order) {
             logger.warn(`SSE connection attempt for non-existent order: ${id}`);
             return res.status(404).json({
@@ -60,11 +68,18 @@ exports.streamOrderStatus = async (req, res) => {
         };
         res.write(`data: ${JSON.stringify(initialData)}\n\n`);
 
-        // Register client for updates
-        const registered = orderEventManager.addClient(id, res);
+        // Register client for updates using the actual orderId (string) for consistency
+        // This ensures broadcasts from order controller will match
+        const orderIdForBroadcast = order.orderId || id;
+        const registered = orderEventManager.addClient(orderIdForBroadcast, res);
+        
+        // Also register with MongoDB _id as fallback for compatibility
+        if (order._id && order._id.toString() !== orderIdForBroadcast) {
+            orderEventManager.addClient(order._id.toString(), res);
+        }
 
         if (!registered) {
-            logger.error(`Failed to register SSE client for order ${id}: Max connections reached`);
+            logger.error(`Failed to register SSE client for order ${orderIdForBroadcast}: Max connections reached`);
             res.write(`data: ${JSON.stringify({ type: 'error', message: 'Max connections reached' })}\n\n`);
             return res.end();
         }
@@ -84,24 +99,33 @@ exports.streamOrderStatus = async (req, res) => {
                 // Send comment as heartbeat (doesn't trigger onmessage)
                 res.write(`: heartbeat ${Date.now()}\n\n`);
             } catch (error) {
-                logger.error(`Heartbeat failed for order ${id}:`, error);
+                logger.error(`Heartbeat failed for order ${orderIdForBroadcast}:`, error);
                 clearInterval(heartbeat);
-                orderEventManager.removeClient(id, res);
+                orderEventManager.removeClient(orderIdForBroadcast, res);
+                if (order._id && order._id.toString() !== orderIdForBroadcast) {
+                    orderEventManager.removeClient(order._id.toString(), res);
+                }
             }
         }, heartbeatInterval);
 
         // Cleanup on client disconnect
         req.on('close', () => {
-            logger.info(`SSE client disconnected from order ${id}`);
+            logger.info(`SSE client disconnected from order ${orderIdForBroadcast}`);
             clearInterval(heartbeat);
-            orderEventManager.removeClient(id, res);
+            orderEventManager.removeClient(orderIdForBroadcast, res);
+            if (order._id && order._id.toString() !== orderIdForBroadcast) {
+                orderEventManager.removeClient(order._id.toString(), res);
+            }
         });
 
         // Handle errors
         req.on('error', (error) => {
-            logger.error(`SSE connection error for order ${id}:`, error);
+            logger.error(`SSE connection error for order ${orderIdForBroadcast}:`, error);
             clearInterval(heartbeat);
-            orderEventManager.removeClient(id, res);
+            orderEventManager.removeClient(orderIdForBroadcast, res);
+            if (order._id && order._id.toString() !== orderIdForBroadcast) {
+                orderEventManager.removeClient(order._id.toString(), res);
+            }
         });
 
     } catch (error) {

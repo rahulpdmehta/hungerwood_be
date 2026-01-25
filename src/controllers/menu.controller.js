@@ -121,7 +121,18 @@ exports.getMenuItem = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const item = await MenuItem.findOne({ $or: [{ _id: id }, { id: id }] }).populate('category', 'name slug order');
+    // Try to find by string id field first (since items use string IDs like "item9")
+    // Then try by MongoDB _id if that fails
+    let item = await MenuItem.findOne({ id: id });
+    if (!item) {
+      // Only try findById if the id looks like a valid ObjectId (24 hex characters)
+      if (id.match(/^[0-9a-fA-F]{24}$/)) {
+        item = await MenuItem.findById(id);
+      }
+    }
+    if (item) {
+      await item.populate('category', 'name slug order');
+    }
 
     if (!item) {
       return res.status(404).json({
@@ -290,7 +301,15 @@ exports.updateMenuItem = async (req, res) => {
       discount
     } = req.body;
 
-    const menuItem = await MenuItem.findById(id);
+    // Try to find by string id field first (since items use string IDs like "item9")
+    // Then try by MongoDB _id if that fails
+    let menuItem = await MenuItem.findOne({ id: id });
+    if (!menuItem) {
+      // Only try findById if the id looks like a valid ObjectId (24 hex characters)
+      if (id.match(/^[0-9a-fA-F]{24}$/)) {
+        menuItem = await MenuItem.findById(id);
+      }
+    }
 
     if (!menuItem) {
       return res.status(404).json({
@@ -331,8 +350,9 @@ exports.updateMenuItem = async (req, res) => {
     if (isBestSeller !== undefined) updateData['tags.isBestseller'] = Boolean(isBestSeller);
     if (discount !== undefined) updateData.discount = parseFloat(discount);
 
+    // Use the MongoDB _id for the update
     const updatedMenuItem = await MenuItem.findByIdAndUpdate(
-      id,
+      menuItem._id,
       updateData,
       { new: true, runValidators: true }
     ).populate('category', 'name slug');
@@ -361,7 +381,15 @@ exports.deleteMenuItem = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const menuItem = await MenuItem.findById(id);
+    // Try to find by string id field first (since items use string IDs like "item9")
+    // Then try by MongoDB _id if that fails
+    let menuItem = await MenuItem.findOne({ id: id });
+    if (!menuItem) {
+      // Only try findById if the id looks like a valid ObjectId (24 hex characters)
+      if (id.match(/^[0-9a-fA-F]{24}$/)) {
+        menuItem = await MenuItem.findById(id);
+      }
+    }
 
     if (!menuItem) {
       return res.status(404).json({
@@ -370,7 +398,8 @@ exports.deleteMenuItem = async (req, res) => {
       });
     }
 
-    await MenuItem.findByIdAndDelete(id);
+    // Delete using the MongoDB _id
+    await MenuItem.findByIdAndDelete(menuItem._id);
 
     logger.info(`Menu item deleted by admin ${req.user.userId}: ${menuItem.name}`);
 
@@ -382,7 +411,7 @@ exports.deleteMenuItem = async (req, res) => {
     logger.error('Delete menu item error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to delete menu item'
+      message: error.message || 'Failed to delete menu item'
     });
   }
 };

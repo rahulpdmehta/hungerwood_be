@@ -135,7 +135,7 @@ class WalletController {
 
             const balance = await walletService.getWalletBalance(userId);
             const referralInfo = await referralService.getUserReferralCode(userId);
-            const referredUsers = referralService.getReferredUsers(userId);
+            const referredUsers = await referralService.getReferredUsers(userId);
 
             res.json({
                 success: true,

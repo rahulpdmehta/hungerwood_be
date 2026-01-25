@@ -54,7 +54,7 @@ class ReferralService {
             }
 
             // Generate new referral code
-            const referralCode = this.generateReferralCode(user.name || 'USER', userId);
+            const referralCode = await this.generateReferralCode(user.name || 'USER', userId);
 
             // Update user with referral code
             user.referralCode = referralCode;
