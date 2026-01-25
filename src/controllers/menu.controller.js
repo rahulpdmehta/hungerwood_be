@@ -79,53 +79,24 @@ exports.getMenuItems = async (req, res) => {
       model: 'Category'
     }).sort({ createdAt: -1 });
 
-    // Get all categories for lookup
-    const allCategories = await Category.find({ isActive: true });
-    const categoryMap = {};
-    allCategories.forEach(cat => {
-      categoryMap[cat._id.toString()] = cat;
-      categoryMap[cat.name.toLowerCase()] = cat;
-      categoryMap[cat.slug] = cat;
-    });
-
-    // Ensure category is included - handle both ObjectId references and string categories
+    // Convert category to string format for API response
     items = items.map(item => {
       const itemObj = item.toObject ? item.toObject() : item;
       
-      // If category is a populated object with name, use it
+      // If category is a populated object, extract the name as string
       if (itemObj.category && typeof itemObj.category === 'object' && itemObj.category.name) {
-        // Already populated, keep it
-        return itemObj;
+        itemObj.category = itemObj.category.name;
+      }
+      // If category is already a string, keep it
+      // If category is an ObjectId that wasn't populated, set to empty string (shouldn't happen)
+      else if (itemObj.category && typeof itemObj.category === 'object' && !itemObj.category.name) {
+        itemObj.category = '';
+      }
+      // If category is null/undefined, set empty string
+      else if (!itemObj.category) {
+        itemObj.category = '';
       }
       
-      // If category is a string (name or slug), look it up
-      if (typeof itemObj.category === 'string') {
-        const foundCategory = categoryMap[itemObj.category.toLowerCase()];
-        if (foundCategory) {
-          itemObj.category = {
-            name: foundCategory.name,
-            slug: foundCategory.slug,
-            order: foundCategory.order || 0
-          };
-          return itemObj;
-        }
-      }
-      
-      // If category is an ObjectId that wasn't populated, try to find it
-      if (itemObj.category && typeof itemObj.category === 'object' && itemObj.category._id) {
-        const foundCategory = categoryMap[itemObj.category._id.toString()];
-        if (foundCategory) {
-          itemObj.category = {
-            name: foundCategory.name,
-            slug: foundCategory.slug,
-            order: foundCategory.order || 0
-          };
-          return itemObj;
-        }
-      }
-      
-      // Default fallback
-      itemObj.category = { name: 'All', slug: 'all', order: 0 };
       return itemObj;
     });
 
@@ -161,44 +132,19 @@ exports.getMenuItem = async (req, res) => {
 
     const itemObj = item.toObject ? item.toObject() : item;
     
-    // Get all categories for lookup
-    const allCategories = await Category.find({ isActive: true });
-    const categoryMap = {};
-    allCategories.forEach(cat => {
-      categoryMap[cat._id.toString()] = cat;
-      categoryMap[cat.name.toLowerCase()] = cat;
-      categoryMap[cat.slug] = cat;
-    });
-    
-    // Handle category - support both ObjectId references and string categories
+    // Convert category to string format for API response
+    // If category is a populated object, extract the name as string
     if (itemObj.category && typeof itemObj.category === 'object' && itemObj.category.name) {
-      // Already populated, keep it
-    } else if (typeof itemObj.category === 'string') {
-      // Category is a string, look it up
-      const foundCategory = categoryMap[itemObj.category.toLowerCase()];
-      if (foundCategory) {
-        itemObj.category = {
-          name: foundCategory.name,
-          slug: foundCategory.slug,
-          order: foundCategory.order || 0
-        };
-      } else {
-        itemObj.category = { name: 'All', slug: 'all', order: 0 };
-      }
-    } else if (itemObj.category && typeof itemObj.category === 'object' && itemObj.category._id) {
-      // ObjectId that wasn't populated
-      const foundCategory = categoryMap[itemObj.category._id.toString()];
-      if (foundCategory) {
-        itemObj.category = {
-          name: foundCategory.name,
-          slug: foundCategory.slug,
-          order: foundCategory.order || 0
-        };
-      } else {
-        itemObj.category = { name: 'All', slug: 'all', order: 0 };
-      }
-    } else {
-      itemObj.category = { name: 'All', slug: 'all', order: 0 };
+      itemObj.category = itemObj.category.name;
+    }
+    // If category is already a string, keep it
+    // If category is an ObjectId that wasn't populated, set to empty string
+    else if (itemObj.category && typeof itemObj.category === 'object' && !itemObj.category.name) {
+      itemObj.category = '';
+    }
+    // If category is null/undefined, set empty string
+    else if (!itemObj.category) {
+      itemObj.category = '';
     }
 
     res.json({
