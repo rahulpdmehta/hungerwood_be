@@ -155,8 +155,16 @@ exports.createOrder = async (req, res) => {
     logger.info(`Order created: ${order._id} by user ${userId}, Wallet used: ₹${walletAmount}`);
 
     // Process referral rewards asynchronously (don't wait)
+    // Pass the saved order document to ensure all fields are available
     referralService.processReferralReward(order).catch(err => {
       logger.error('Error processing referral reward:', err);
+      // Log more details for debugging
+      logger.error('Order details:', {
+        orderId: order.orderId,
+        order_id: order._id,
+        userId: order.user?._id || order.user,
+        totalAmount: order.totalAmount
+      });
     });
 
     // Convert Mongoose document to plain object and ensure ID is included

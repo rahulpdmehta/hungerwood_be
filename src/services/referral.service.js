@@ -4,6 +4,7 @@
  */
 
 const User = require('../models/User.model');
+const Order = require('../models/Order.model');
 const WalletTransaction = require('../models/WalletTransaction.model');
 const walletService = require('./wallet.service');
 const { TRANSACTION_REASONS, TRANSACTION_TYPES } = require('../models/WalletTransaction.model');
@@ -135,19 +136,29 @@ class ReferralService {
      */
     async processReferralReward(order) {
         try {
-            const newUser = await User.findById(order.user);
-            if (!newUser) {
-                logger.error('User not found for order:', order._id);
+            // Handle both ObjectId and populated user field
+            const userId = order.user?._id ? order.user._id : order.user;
+            
+            if (!userId) {
+                logger.error('Order user ID not found for order:', order._id || order.orderId);
                 return;
             }
+
+            const newUser = await User.findById(userId);
+            if (!newUser) {
+                logger.error('User not found for order:', order._id || order.orderId, 'userId:', userId);
+                return;
+            }
+
+            logger.info(`Processing referral reward for order ${order.orderId || order._id}, user: ${newUser.phone}, referredBy: ${newUser.referredBy}, hasUsedReferral: ${newUser.hasUsedReferral}`);
 
             // Check if user was referred
             if (!newUser.referredBy || !newUser.hasUsedReferral) {
-                logger.info('No referral to process for this order');
+                logger.info(`No referral to process - referredBy: ${newUser.referredBy}, hasUsedReferral: ${newUser.hasUsedReferral}`);
                 return;
             }
 
-            // Check if rewards already given
+            // Check if rewards already given (for this user's first order only)
             const hasNewUserReward = await WalletTransaction.exists({
                 user: newUser._id,
                 reason: TRANSACTION_REASONS.REFERRAL_BONUS_NEW_USER,
@@ -155,7 +166,19 @@ class ReferralService {
             });
 
             if (hasNewUserReward) {
-                logger.info('Referral rewards already processed for this user');
+                logger.info('Referral rewards already processed for this user (first order bonus already given)');
+                return;
+            }
+
+            // Verify this is the user's first order (count orders before this one)
+            const previousOrderCount = await Order.countDocuments({
+                user: newUser._id,
+                _id: { $ne: order._id }, // Exclude current order
+                status: { $nin: ['CANCELLED'] } // Don't count cancelled orders
+            });
+
+            if (previousOrderCount > 0) {
+                logger.info(`User has ${previousOrderCount} previous order(s). Referral rewards only apply to first order.`);
                 return;
             }
 
@@ -171,38 +194,52 @@ class ReferralService {
                 return;
             }
 
+            logger.info(`Crediting referral bonuses - New User: ₹${config.referralBonusNewUser}, Referrer: ₹${config.referralBonusReferrer}`);
+
             // Credit bonus to new user
-            await walletService.creditWallet(
-                newUser._id,
-                config.referralBonusNewUser,
-                TRANSACTION_REASONS.REFERRAL_BONUS_NEW_USER,
-                {
-                    orderId: order._id,
-                    referralId: referrer._id,
-                    description: `Referral bonus for using code ${referrer.referralCode}`,
-                    metadata: {
-                        referrerCode: referrer.referralCode,
-                        firstOrderAmount: order.totalAmount
+            try {
+                await walletService.creditWallet(
+                    newUser._id,
+                    config.referralBonusNewUser,
+                    TRANSACTION_REASONS.REFERRAL_BONUS_NEW_USER,
+                    {
+                        orderId: order._id,
+                        referralId: referrer._id,
+                        description: `Referral bonus for using code ${referrer.referralCode}`,
+                        metadata: {
+                            referrerCode: referrer.referralCode,
+                            firstOrderAmount: order.totalAmount
+                        }
                     }
-                }
-            );
+                );
+                logger.info(`✅ Successfully credited ₹${config.referralBonusNewUser} to new user ${newUser._id}`);
+            } catch (creditError) {
+                logger.error(`❌ Failed to credit new user wallet:`, creditError);
+                throw creditError; // Re-throw to prevent referrer from getting bonus if new user fails
+            }
 
             // Credit bonus to referrer
-            await walletService.creditWallet(
-                referrer._id,
-                config.referralBonusReferrer,
-                TRANSACTION_REASONS.REFERRAL_BONUS_REFERRER,
-                {
-                    orderId: order._id,
-                    referralId: newUser._id,
-                    description: `Referral bonus for referring ${newUser.name || 'user'}`,
-                    metadata: {
-                        referredUserName: newUser.name,
-                        referredUserPhone: newUser.phone,
-                        firstOrderAmount: order.totalAmount
+            try {
+                await walletService.creditWallet(
+                    referrer._id,
+                    config.referralBonusReferrer,
+                    TRANSACTION_REASONS.REFERRAL_BONUS_REFERRER,
+                    {
+                        orderId: order._id,
+                        referralId: newUser._id,
+                        description: `Referral bonus for referring ${newUser.name || 'user'}`,
+                        metadata: {
+                            referredUserName: newUser.name,
+                            referredUserPhone: newUser.phone,
+                            firstOrderAmount: order.totalAmount
+                        }
                     }
-                }
-            );
+                );
+                logger.info(`✅ Successfully credited ₹${config.referralBonusReferrer} to referrer ${referrer._id}`);
+            } catch (creditError) {
+                logger.error(`❌ Failed to credit referrer wallet:`, creditError);
+                throw creditError;
+            }
 
             // Update referrer's referral stats
             referrer.referralCount = (referrer.referralCount || 0) + 1;

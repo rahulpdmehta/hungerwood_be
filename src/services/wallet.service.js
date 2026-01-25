@@ -73,7 +73,7 @@ class WalletService {
                 transaction,
                 previousBalance: currentBalance,
                 newBalance,
-                user: updatedUser
+                user
             };
         } catch (error) {
             logger.error('Error crediting wallet:', error);
