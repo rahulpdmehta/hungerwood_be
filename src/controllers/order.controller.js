@@ -105,9 +105,28 @@ exports.createOrder = async (req, res) => {
       logger.info(`ℹ️  No wallet payment requested (walletUsed=${walletUsed})`);
     }
 
+    // Generate order ID: HW_YYYYMMDD_XXX (where XXX is today's order count)
+    const today = new Date();
+    const todayDate = today.toISOString().split('T')[0].replace(/-/g, ''); // YYYYMMDD format
+    
+    // Count orders created today
+    const startOfDay = new Date(today);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(today);
+    endOfDay.setHours(23, 59, 59, 999);
+    
+    const todayOrderCount = await Order.countDocuments({
+      createdAt: {
+        $gte: startOfDay,
+        $lte: endOfDay
+      }
+    });
+    
+    const orderId = `${todayDate}${String(todayOrderCount + 1).padStart(3, '0')}`;
+
     // Create order
     const order = new Order({
-      orderId: `HW${Date.now().toString().slice(-6)}`,
+      orderId: orderId,
       user: userId,
       items: items.map(item => ({
         menuItem: item.menuItem || item.id,
@@ -199,9 +218,22 @@ exports.getOrder = async (req, res) => {
     const { id } = req.params;
     const userId = req.user.userId;
 
-    const order = await Order.findById(id)
-      .populate('items.menuItem', 'name image')
-      .populate('user', 'phone name');
+    // Try to find order by MongoDB _id first, then by orderId
+    let order = null;
+    
+    // Check if id looks like a MongoDB ObjectId (24 hex characters)
+    if (id.match(/^[0-9a-fA-F]{24}$/)) {
+      order = await Order.findById(id)
+        .populate('items.menuItem', 'name image')
+        .populate('user', 'phone name');
+    }
+    
+    // If not found by _id, try finding by orderId
+    if (!order) {
+      order = await Order.findOne({ orderId: id })
+        .populate('items.menuItem', 'name image')
+        .populate('user', 'phone name');
+    }
 
     if (!order) {
       return res.status(404).json({
@@ -211,7 +243,9 @@ exports.getOrder = async (req, res) => {
     }
 
     // Check if order belongs to user (unless admin)
-    if (order.user._id.toString() !== userId && req.user.role !== 'admin') {
+    // Handle both populated and non-populated user field
+    const orderUserId = order.user._id ? order.user._id.toString() : order.user.toString();
+    if (orderUserId !== userId.toString() && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
         message: 'Access denied'
@@ -220,7 +254,7 @@ exports.getOrder = async (req, res) => {
 
     res.json({
       success: true,
-      data: populatedOrder
+      data: order
     });
   } catch (error) {
     logger.error('Get order error:', error);
@@ -287,7 +321,22 @@ exports.getOrderById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const order = ordersDB.findById(id);
+    // Try to find order by MongoDB _id first, then by orderId
+    let order = null;
+    
+    // Check if id looks like a MongoDB ObjectId (24 hex characters)
+    if (id.match(/^[0-9a-fA-F]{24}$/)) {
+      order = await Order.findById(id)
+        .populate('items.menuItem', 'name image')
+        .populate('user', 'phone name');
+    }
+    
+    // If not found by _id, try finding by orderId
+    if (!order) {
+      order = await Order.findOne({ orderId: id })
+        .populate('items.menuItem', 'name image')
+        .populate('user', 'phone name');
+    }
 
     if (!order) {
       return res.status(404).json({
@@ -296,32 +345,9 @@ exports.getOrderById = async (req, res) => {
       });
     }
 
-    // Populate user details
-    const user = usersDB.findById(order.user);
-
-    // Populate menu item details
-    const populatedItems = order.items.map(item => {
-      const menuItem = menuItemsDB.findById(item.menuItem);
-      return {
-        ...item,
-        menuItemDetails: menuItem || null
-      };
-    });
-
-    const populatedOrder = {
-      ...order,
-      items: populatedItems,
-      customerDetails: {
-        id: user?._id,
-        name: user?.name || 'Unknown',
-        phone: user?.phone || 'N/A',
-        email: user?.email || 'N/A'
-      }
-    };
-
     res.json({
       success: true,
-      data: populatedOrder
+      data: order
     });
   } catch (error) {
     logger.error('Get order by ID error:', error);
@@ -349,7 +375,18 @@ exports.updateOrderStatus = async (req, res) => {
       });
     }
 
-    const order = await Order.findById(id);
+    // Try to find order by MongoDB _id first, then by orderId
+    let order = null;
+    
+    // Check if id looks like a MongoDB ObjectId (24 hex characters)
+    if (id.match(/^[0-9a-fA-F]{24}$/)) {
+      order = await Order.findById(id);
+    }
+    
+    // If not found by _id, try finding by orderId
+    if (!order) {
+      order = await Order.findOne({ orderId: id });
+    }
 
     if (!order) {
       return res.status(404).json({

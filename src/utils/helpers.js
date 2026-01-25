@@ -40,7 +40,7 @@ const generateOTP = () => {
 const generateOrderId = () => {
   const timestamp = Date.now().toString(36).toUpperCase();
   const random = Math.random().toString(36).substring(2, 8).toUpperCase();
-  return `HW-${timestamp}${random}`;
+  return `${timestamp}${random}`;
 };
 
 /**

@@ -5,7 +5,7 @@
 
 const Order = require('../models/Order.model');
 const MenuItem = require('../models/MenuItem.model');
-const { generateOrderId, calculateOrderTotal } = require('../utils/helpers');
+const { calculateOrderTotal } = require('../utils/helpers');
 const { ORDER_STATUS, TAX_RATE, PACKAGING_FEE, DELIVERY_FEE } = require('../utils/constants');
 const logger = require('../config/logger');
 
@@ -50,9 +50,28 @@ const createOrder = async (userId, orderData) => {
       DELIVERY_FEE
     );
     
+    // Generate order ID: HW_YYYYMMDD_XXX (where XXX is today's order count)
+    const today = new Date();
+    const todayDate = today.toISOString().split('T')[0].replace(/-/g, ''); // YYYYMMDD format
+    
+    // Count orders created today
+    const startOfDay = new Date(today);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(today);
+    endOfDay.setHours(23, 59, 59, 999);
+    
+    const todayOrderCount = await Order.countDocuments({
+      createdAt: {
+        $gte: startOfDay,
+        $lte: endOfDay
+      }
+    });
+    
+    const orderId = `${todayDate}${String(todayOrderCount + 1).padStart(3, '0')}`;
+
     // Create order
     const order = new Order({
-      orderId: generateOrderId(),
+      orderId: orderId,
       user: userId,
       items: orderItems,
       subtotal,
@@ -143,7 +162,18 @@ const getOrderById = async (orderId, userId) => {
  */
 const updateOrderStatus = async (orderId, status) => {
   try {
-    const order = await Order.findOne({ orderId });
+    // Try to find order by MongoDB _id first, then by orderId
+    let order = null;
+    
+    // Check if orderId looks like a MongoDB ObjectId (24 hex characters)
+    if (orderId.match(/^[0-9a-fA-F]{24}$/)) {
+      order = await Order.findById(orderId);
+    }
+    
+    // If not found by _id, try finding by orderId field
+    if (!order) {
+      order = await Order.findOne({ orderId: orderId });
+    }
     
     if (!order) {
       throw new Error('Order not found');
