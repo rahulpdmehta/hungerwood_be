@@ -5,9 +5,8 @@
 
 const User = require('../models/User.model');
 const Order = require('../models/Order.model');
-const WalletTransaction = require('../models/WalletTransaction.model');
+const { WalletTransaction, TRANSACTION_REASONS, TRANSACTION_TYPES } = require('../models/WalletTransaction.model');
 const walletService = require('./wallet.service');
-const { TRANSACTION_REASONS, TRANSACTION_TYPES } = require('../models/WalletTransaction.model');
 const config = require('../config/env');
 const logger = require('../config/logger');
 const { getCurrentISO } = require('../utils/dateFormatter');

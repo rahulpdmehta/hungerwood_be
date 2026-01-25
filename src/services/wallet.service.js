@@ -4,8 +4,7 @@
  */
 
 const User = require('../models/User.model');
-const WalletTransaction = require('../models/WalletTransaction.model');
-const { TRANSACTION_TYPES, TRANSACTION_REASONS } = require('../models/WalletTransaction.model');
+const { WalletTransaction, TRANSACTION_TYPES, TRANSACTION_REASONS } = require('../models/WalletTransaction.model');
 const logger = require('../config/logger');
 
 class WalletService {
