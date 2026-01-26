@@ -26,7 +26,6 @@ const menuRoutes = require('./routes/menu.routes');
 const orderRoutes = require('./routes/order.routes');
 const adminRoutes = require('./routes/admin.routes');
 const addressRoutes = require('./routes/address.routes');
-const sseRoutes = require('./routes/sse.routes');
 const bannerRoutes = require('./routes/banner.routes');
 
 // Initialize app
@@ -226,10 +225,6 @@ app.use('/api/auth', authRoutes);
 app.use('/api/versions', require('./routes/version.routes')); // Public version checking endpoint
 app.use('/api/menu', menuRoutes);
 app.use('/api/banners', bannerRoutes);
-
-// SSE routes MUST be registered before /api/orders to avoid auth middleware
-// (Server-Sent Events for real-time updates - no auth required)
-app.use('/api', sseRoutes);
 
 app.use('/api/orders', orderRoutes);
 app.use('/api/wallet', require('./routes/wallet.routes'));

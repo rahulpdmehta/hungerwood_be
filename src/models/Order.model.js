@@ -139,7 +139,24 @@ const orderSchema = new mongoose.Schema({
   review: {
     type: String,
     trim: true
-  }
+  },
+  
+  // Status history for tracking order status changes
+  statusHistory: [{
+    status: {
+      type: String,
+      enum: Object.values(ORDER_STATUS),
+      required: true
+    },
+    timestamp: {
+      type: Date,
+      default: Date.now
+    },
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    }
+  }]
 }, {
   timestamps: true
 });

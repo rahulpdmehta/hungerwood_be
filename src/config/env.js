@@ -53,7 +53,4 @@ module.exports = {
   maxWalletUsagePercent: parseInt(process.env.MAX_WALLET_USAGE_PERCENT) || 50,
   minOrderAmountForReferral: parseInt(process.env.MIN_ORDER_AMOUNT_FOR_REFERRAL) || 199,
 
-  // SSE (Server-Sent Events)
-  sseHeartbeatInterval: parseInt(process.env.SSE_HEARTBEAT_INTERVAL) || 30000, // 30 seconds
-  sseMaxConnections: parseInt(process.env.SSE_MAX_CONNECTIONS) || 100
 };

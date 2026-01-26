@@ -9,7 +9,6 @@ const User = require('../models/User.model');
 const logger = require('../config/logger');
 const walletService = require('../services/wallet.service');
 const referralService = require('../services/referral.service');
-const orderEventManager = require('../services/event.service');
 const { TRANSACTION_REASONS } = require('../models/WalletTransaction.model');
 const config = require('../config/env');
 const { validateStatusTransition, getAllowedNextStatuses } = require('../utils/orderStatusValidator');
@@ -556,11 +555,13 @@ exports.updateOrderStatus = async (req, res) => {
     }
 
     // Initialize statusHistory if not exists
-    if (!order.statusHistory) {
+    if (!order.statusHistory || order.statusHistory.length === 0) {
+      // Get user ID (handle both populated and non-populated user)
+      const userId = order.user?._id || order.user || null;
       order.statusHistory = [{
         status: currentStatus,
-        timestamp: order.createdAt,
-        updatedBy: order.user
+        timestamp: order.createdAt || new Date(),
+        updatedBy: userId
       }];
     }
 
@@ -577,17 +578,6 @@ exports.updateOrderStatus = async (req, res) => {
     await updatedOrder.populate('items.menuItem', 'name image');
 
     logger.info(`Order ${id} status updated from ${currentStatus} to ${newStatus} by admin ${adminId}`);
-
-    // Broadcast update to connected SSE clients
-    orderEventManager.broadcastOrderUpdate(id, {
-      type: 'statusUpdate',
-      orderId: id,
-      status: newStatus,
-      previousStatus: currentStatus,
-      statusHistory: updatedOrder.statusHistory,
-      updatedAt: updatedOrder.updatedAt,
-      updatedBy: adminId
-    });
 
     // Transform order: set id to _id value and handle nested items
     const { transformEntity } = require('../utils/transformers');
@@ -620,9 +610,16 @@ exports.updateOrderStatus = async (req, res) => {
     });
   } catch (error) {
     logger.error('Update order status error:', error);
+    logger.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      orderId: req.params.id,
+      status: req.body.status
+    });
     res.status(500).json({
       success: false,
-      message: 'Failed to update order status'
+      message: 'Failed to update order status',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
