@@ -291,7 +291,8 @@ const getAllUsers = async (req, res, next) => {
       Order.find().sort({ createdAt: -1 })
     ]);
 
-    // Add order stats for each user
+    // Add order stats for each user and transform
+    const { transformEntity } = require('../utils/transformers');
     const usersWithStats = await Promise.all(users.map(async (user) => {
       const userOrders = orders.filter(order => order.user.toString() === user._id.toString());
       const totalOrders = userOrders.length;
@@ -300,17 +301,20 @@ const getAllUsers = async (req, res, next) => {
         ? userOrders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0]
         : null;
 
+      // Transform user: set id to _id value
+      const userObj = transformEntity(user);
+
       return {
-        _id: user._id,
-        phone: user.phone,
-        name: user.name || 'N/A',
-        email: user.email || 'N/A',
-        role: user.role || 'USER',
-        isActive: user.isActive !== undefined ? user.isActive : true,
-        walletBalance: user.walletBalance || 0,
-        referralCode: user.referralCode || null,
-        totalReferrals: user.referralCount || 0,
-        createdAt: user.createdAt || null,
+        id: userObj.id,
+        phone: userObj.phone,
+        name: userObj.name || 'N/A',
+        email: userObj.email || 'N/A',
+        role: userObj.role || 'USER',
+        isActive: userObj.isActive !== undefined ? userObj.isActive : true,
+        walletBalance: userObj.walletBalance || 0,
+        referralCode: userObj.referralCode || null,
+        totalReferrals: userObj.referralCount || 0,
+        createdAt: userObj.createdAt || null,
         stats: {
           totalOrders,
           totalSpent,

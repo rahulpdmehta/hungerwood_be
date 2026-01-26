@@ -7,6 +7,46 @@ const Category = require('../models/Category.model');
 const MenuItem = require('../models/MenuItem.model');
 const logger = require('../config/logger');
 const { getCurrentISO } = require('../utils/dateFormatter');
+const { transformEntities } = require('../utils/transformers');
+
+/**
+ * Transform menu item: Set id to _id value (MongoDB ObjectId as string)
+ * This ensures consistency where id field always contains the _id value
+ */
+const transformMenuItem = (item) => {
+  if (!item) return null;
+  const itemObj = item.toObject ? item.toObject() : { ...item };
+  
+  // Set id to _id value (MongoDB ObjectId as string) - override any existing string id field
+  if (itemObj._id) {
+    itemObj.id = itemObj._id.toString();
+  }
+  
+  // Convert category to string format for API response
+  // If category is a populated object, extract the name as string
+  if (itemObj.category && typeof itemObj.category === 'object' && itemObj.category.name) {
+    itemObj.category = itemObj.category.name;
+  }
+  // If category is already a string, keep it
+  // If category is an ObjectId that wasn't populated, set to empty string (shouldn't happen)
+  else if (itemObj.category && typeof itemObj.category === 'object' && !itemObj.category.name) {
+    itemObj.category = '';
+  }
+  // If category is null/undefined, set empty string
+  else if (!itemObj.category) {
+    itemObj.category = '';
+  }
+  
+  return itemObj;
+};
+
+/**
+ * Transform array of menu items
+ */
+const transformMenuItems = (items) => {
+  if (!Array.isArray(items)) return items;
+  return items.map(transformMenuItem);
+};
 
 /**
  * Get all categories
@@ -15,9 +55,12 @@ exports.getCategories = async (req, res) => {
   try {
     const categories = await Category.find({ isActive: true }).sort({ order: 1 });
 
+    // Transform categories: set id to _id value
+    const transformedCategories = transformEntities(categories);
+
     res.json({
       success: true,
-      data: categories
+      data: transformedCategories
     });
   } catch (error) {
     logger.error('Get categories error:', error);
@@ -79,26 +122,8 @@ exports.getMenuItems = async (req, res) => {
       model: 'Category'
     }).sort({ createdAt: -1 });
 
-    // Convert category to string format for API response
-    items = items.map(item => {
-      const itemObj = item.toObject ? item.toObject() : item;
-      
-      // If category is a populated object, extract the name as string
-      if (itemObj.category && typeof itemObj.category === 'object' && itemObj.category.name) {
-        itemObj.category = itemObj.category.name;
-      }
-      // If category is already a string, keep it
-      // If category is an ObjectId that wasn't populated, set to empty string (shouldn't happen)
-      else if (itemObj.category && typeof itemObj.category === 'object' && !itemObj.category.name) {
-        itemObj.category = '';
-      }
-      // If category is null/undefined, set empty string
-      else if (!itemObj.category) {
-        itemObj.category = '';
-      }
-      
-      return itemObj;
-    });
+    // Transform items: set id to _id value and handle category
+    items = transformMenuItems(items);
 
     res.json({
       success: true,
@@ -121,15 +146,17 @@ exports.getMenuItem = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Try to find by string id field first (since items use string IDs like "item9")
-    // Then try by MongoDB _id if that fails
-    let item = await MenuItem.findOne({ id: id });
-    if (!item) {
-      // Only try findById if the id looks like a valid ObjectId (24 hex characters)
-      if (id.match(/^[0-9a-fA-F]{24}$/)) {
-        item = await MenuItem.findById(id);
-      }
+    // Try to find by MongoDB _id first (prioritize _id over string id field)
+    // Check if id looks like a valid ObjectId (24 hex characters)
+    let item = null;
+    if (id.match(/^[0-9a-fA-F]{24}$/)) {
+      item = await MenuItem.findById(id);
     }
+    // Fallback to string id field for backward compatibility
+    if (!item) {
+      item = await MenuItem.findOne({ id: id });
+    }
+    
     if (item) {
       await item.populate('category', 'name slug order');
     }
@@ -141,22 +168,8 @@ exports.getMenuItem = async (req, res) => {
       });
     }
 
-    const itemObj = item.toObject ? item.toObject() : item;
-    
-    // Convert category to string format for API response
-    // If category is a populated object, extract the name as string
-    if (itemObj.category && typeof itemObj.category === 'object' && itemObj.category.name) {
-      itemObj.category = itemObj.category.name;
-    }
-    // If category is already a string, keep it
-    // If category is an ObjectId that wasn't populated, set to empty string
-    else if (itemObj.category && typeof itemObj.category === 'object' && !itemObj.category.name) {
-      itemObj.category = '';
-    }
-    // If category is null/undefined, set empty string
-    else if (!itemObj.category) {
-      itemObj.category = '';
-    }
+    // Transform item: set id to _id value and handle category
+    const itemObj = transformMenuItem(item);
 
     res.json({
       success: true,
@@ -278,10 +291,13 @@ exports.createMenuItem = async (req, res) => {
 
     logger.info(`Menu item created by admin ${req.user.userId}: ${menuItem.name}`);
 
+    // Transform item: set id to _id value and handle category
+    const transformedItem = transformMenuItem(menuItem);
+
     res.status(201).json({
       success: true,
       message: 'Menu item created successfully',
-      data: menuItem
+      data: transformedItem
     });
   } catch (error) {
     logger.error('Create menu item error:', error);
@@ -311,14 +327,15 @@ exports.updateMenuItem = async (req, res) => {
       discount
     } = req.body;
 
-    // Try to find by string id field first (since items use string IDs like "item9")
-    // Then try by MongoDB _id if that fails
-    let menuItem = await MenuItem.findOne({ id: id });
+    // Try to find by MongoDB _id first (prioritize _id over string id field)
+    // Check if id looks like a valid ObjectId (24 hex characters)
+    let menuItem = null;
+    if (id.match(/^[0-9a-fA-F]{24}$/)) {
+      menuItem = await MenuItem.findById(id);
+    }
+    // Fallback to string id field for backward compatibility
     if (!menuItem) {
-      // Only try findById if the id looks like a valid ObjectId (24 hex characters)
-      if (id.match(/^[0-9a-fA-F]{24}$/)) {
-        menuItem = await MenuItem.findById(id);
-      }
+      menuItem = await MenuItem.findOne({ id: id });
     }
 
     if (!menuItem) {
@@ -386,10 +403,13 @@ exports.updateMenuItem = async (req, res) => {
 
     logger.info(`Menu item updated by admin ${req.user.userId}: ${updatedMenuItem.name}`);
 
+    // Transform item: set id to _id value and handle category
+    const transformedItem = transformMenuItem(updatedMenuItem);
+
     res.json({
       success: true,
       message: 'Menu item updated successfully',
-      data: updatedMenuItem
+      data: transformedItem
     });
   } catch (error) {
     logger.error('Update menu item error:', error);
@@ -408,14 +428,15 @@ exports.deleteMenuItem = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Try to find by string id field first (since items use string IDs like "item9")
-    // Then try by MongoDB _id if that fails
-    let menuItem = await MenuItem.findOne({ id: id });
+    // Try to find by MongoDB _id first (prioritize _id over string id field)
+    // Check if id looks like a valid ObjectId (24 hex characters)
+    let menuItem = null;
+    if (id.match(/^[0-9a-fA-F]{24}$/)) {
+      menuItem = await MenuItem.findById(id);
+    }
+    // Fallback to string id field for backward compatibility
     if (!menuItem) {
-      // Only try findById if the id looks like a valid ObjectId (24 hex characters)
-      if (id.match(/^[0-9a-fA-F]{24}$/)) {
-        menuItem = await MenuItem.findById(id);
-      }
+      menuItem = await MenuItem.findOne({ id: id });
     }
 
     if (!menuItem) {
@@ -451,14 +472,15 @@ exports.toggleAvailability = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Try to find by string id field first (since items use string IDs like "item9")
-    // Then try by MongoDB _id if that fails
-    let menuItem = await MenuItem.findOne({ id: id });
+    // Try to find by MongoDB _id first (prioritize _id over string id field)
+    // Check if id looks like a valid ObjectId (24 hex characters)
+    let menuItem = null;
+    if (id.match(/^[0-9a-fA-F]{24}$/)) {
+      menuItem = await MenuItem.findById(id);
+    }
+    // Fallback to string id field for backward compatibility
     if (!menuItem) {
-      // Only try findById if the id looks like a valid ObjectId (24 hex characters)
-      if (id.match(/^[0-9a-fA-F]{24}$/)) {
-        menuItem = await MenuItem.findById(id);
-      }
+      menuItem = await MenuItem.findOne({ id: id });
     }
 
     if (!menuItem) {
@@ -477,10 +499,13 @@ exports.toggleAvailability = async (req, res) => {
 
     logger.info(`Menu item availability toggled by admin ${req.user.userId}: ${updatedMenuItem.name} - ${updatedMenuItem.isAvailable ? 'Available' : 'Unavailable'}`);
 
+    // Transform item: set id to _id value and handle category
+    const transformedItem = transformMenuItem(updatedMenuItem);
+
     res.json({
       success: true,
       message: `Menu item ${updatedMenuItem.isAvailable ? 'is now available' : 'is now unavailable'}`,
-      data: updatedMenuItem
+      data: transformedItem
     });
   } catch (error) {
     logger.error('Toggle availability error:', error);

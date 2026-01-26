@@ -68,7 +68,7 @@ const createOrder = async (userId, orderData) => {
     });
     
     const orderId = `${todayDate}${String(todayOrderCount + 1).padStart(3, '0')}`;
-
+    
     // Create order
     const order = new Order({
       orderId: orderId,

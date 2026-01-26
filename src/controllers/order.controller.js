@@ -197,15 +197,28 @@ exports.createOrder = async (req, res) => {
       });
     });
 
-    // Convert Mongoose document to plain object and ensure ID is included
-    const orderObj = order.toObject();
+    // Transform order: set id to _id value and handle nested items
+    const { transformEntityWithNested } = require('../utils/transformers');
+    const orderObj = transformEntityWithNested(order, ['items', 'user']);
+    
+    // Transform nested menuItem references in items
+    if (orderObj.items && Array.isArray(orderObj.items)) {
+      orderObj.items = orderObj.items.map(item => {
+        if (item.menuItem && item.menuItem._id) {
+          item.menuItem = {
+            ...item.menuItem,
+            id: item.menuItem._id.toString()
+          };
+        }
+        return item;
+      });
+    }
     
     res.status(201).json({
       success: true,
       message: 'Order placed successfully',
       data: {
         ...orderObj,
-        id: orderObj._id, // Ensure id field is present for frontend
         paymentBreakdown: {
           total: totalAmount,
           walletUsed: walletAmount,
@@ -234,10 +247,36 @@ exports.getMyOrders = async (req, res) => {
       .populate('user', 'phone name')
       .sort({ createdAt: -1 });
 
+    // Transform orders: set id to _id value and handle nested items
+    const { transformEntities, transformEntity } = require('../utils/transformers');
+    const transformedOrders = orders.map(order => {
+      const orderObj = transformEntity(order);
+      // Transform nested menuItem references in items
+      if (orderObj.items && Array.isArray(orderObj.items)) {
+        orderObj.items = orderObj.items.map(item => {
+          if (item.menuItem && item.menuItem._id) {
+            item.menuItem = {
+              ...item.menuItem,
+              id: item.menuItem._id.toString()
+            };
+          }
+          return item;
+        });
+      }
+      // Transform user reference
+      if (orderObj.user && orderObj.user._id) {
+        orderObj.user = {
+          ...orderObj.user,
+          id: orderObj.user._id.toString()
+        };
+      }
+      return orderObj;
+    });
+
     res.json({
       success: true,
-      count: orders.length,
-      data: orders
+      count: transformedOrders.length,
+      data: transformedOrders
     });
   } catch (error) {
     logger.error('Get my orders error:', error);
@@ -262,8 +301,8 @@ exports.getOrder = async (req, res) => {
     // Check if id looks like a MongoDB ObjectId (24 hex characters)
     if (id.match(/^[0-9a-fA-F]{24}$/)) {
       order = await Order.findById(id)
-        .populate('items.menuItem', 'name image')
-        .populate('user', 'phone name');
+      .populate('items.menuItem', 'name image')
+      .populate('user', 'phone name');
     }
     
     // If not found by _id, try finding by orderId
@@ -290,9 +329,33 @@ exports.getOrder = async (req, res) => {
       });
     }
 
+    // Transform order: set id to _id value and handle nested items
+    const { transformEntity } = require('../utils/transformers');
+    const orderObj = transformEntity(order);
+    
+    // Transform nested menuItem references in items
+    if (orderObj.items && Array.isArray(orderObj.items)) {
+      orderObj.items = orderObj.items.map(item => {
+        if (item.menuItem && item.menuItem._id) {
+          item.menuItem = {
+            ...item.menuItem,
+            id: item.menuItem._id.toString()
+          };
+        }
+        return item;
+      });
+    }
+    // Transform user reference
+    if (orderObj.user && orderObj.user._id) {
+      orderObj.user = {
+        ...orderObj.user,
+        id: orderObj.user._id.toString()
+      };
+    }
+
     res.json({
       success: true,
-      data: order
+      data: orderObj
     });
   } catch (error) {
     logger.error('Get order error:', error);
@@ -325,12 +388,35 @@ exports.getAllOrders = async (req, res) => {
     
     const total = await Order.countDocuments(query);
 
-    // Format response
-    const populatedOrders = orders.map(order => ({
-      ...order.toObject(),
-      customerName: order.user?.name || 'Unknown',
-      customerPhone: order.user?.phone || 'N/A'
-    }));
+    // Transform orders: set id to _id value and handle nested items
+    const { transformEntity } = require('../utils/transformers');
+    const populatedOrders = orders.map(order => {
+      const orderObj = transformEntity(order);
+      // Transform nested menuItem references in items
+      if (orderObj.items && Array.isArray(orderObj.items)) {
+        orderObj.items = orderObj.items.map(item => {
+          if (item.menuItem && item.menuItem._id) {
+            item.menuItem = {
+              ...item.menuItem,
+              id: item.menuItem._id.toString()
+            };
+          }
+          return item;
+        });
+      }
+      // Transform user reference
+      if (orderObj.user && orderObj.user._id) {
+        orderObj.user = {
+          ...orderObj.user,
+          id: orderObj.user._id.toString()
+        };
+      }
+      return {
+        ...orderObj,
+        customerName: order.user?.name || 'Unknown',
+        customerPhone: order.user?.phone || 'N/A'
+      };
+    });
 
     res.json({
       success: true,
@@ -383,9 +469,33 @@ exports.getOrderById = async (req, res) => {
       });
     }
 
+    // Transform order: set id to _id value and handle nested items
+    const { transformEntity } = require('../utils/transformers');
+    const orderObj = transformEntity(order);
+    
+    // Transform nested menuItem references in items
+    if (orderObj.items && Array.isArray(orderObj.items)) {
+      orderObj.items = orderObj.items.map(item => {
+        if (item.menuItem && item.menuItem._id) {
+          item.menuItem = {
+            ...item.menuItem,
+            id: item.menuItem._id.toString()
+          };
+        }
+        return item;
+      });
+    }
+    // Transform user reference
+    if (orderObj.user && orderObj.user._id) {
+      orderObj.user = {
+        ...orderObj.user,
+        id: orderObj.user._id.toString()
+      };
+    }
+
     res.json({
       success: true,
-      data: order
+      data: orderObj
     });
   } catch (error) {
     logger.error('Get order by ID error:', error);
@@ -479,10 +589,34 @@ exports.updateOrderStatus = async (req, res) => {
       updatedBy: adminId
     });
 
+    // Transform order: set id to _id value and handle nested items
+    const { transformEntity } = require('../utils/transformers');
+    const orderObj = transformEntity(updatedOrder);
+    
+    // Transform nested menuItem references in items
+    if (orderObj.items && Array.isArray(orderObj.items)) {
+      orderObj.items = orderObj.items.map(item => {
+        if (item.menuItem && item.menuItem._id) {
+          item.menuItem = {
+            ...item.menuItem,
+            id: item.menuItem._id.toString()
+          };
+        }
+        return item;
+      });
+    }
+    // Transform user reference
+    if (orderObj.user && orderObj.user._id) {
+      orderObj.user = {
+        ...orderObj.user,
+        id: orderObj.user._id.toString()
+      };
+    }
+
     res.json({
       success: true,
       message: `Order status updated to ${newStatus}`,
-      data: updatedOrder
+      data: orderObj
     });
   } catch (error) {
     logger.error('Update order status error:', error);

@@ -7,6 +7,7 @@ const Category = require('../models/Category.model');
 const MenuItem = require('../models/MenuItem.model');
 const logger = require('../config/logger');
 const { getCurrentISO } = require('../utils/dateFormatter');
+const { transformEntity, transformEntities } = require('../utils/transformers');
 
 /**
  * Get all categories
@@ -20,8 +21,9 @@ exports.getAllCategories = async (req, res) => {
     const categoriesWithCount = await Promise.all(
       categories.map(async (category) => {
         const itemCount = await MenuItem.countDocuments({ category: category._id });
+        const categoryObj = transformEntity(category);
         return {
-          ...category.toObject(),
+          ...categoryObj,
           itemCount
         };
       })
@@ -59,13 +61,14 @@ exports.getCategoryById = async (req, res) => {
     // Count menu items
     const itemCount = await MenuItem.countDocuments({ category: category._id });
 
+    // Transform category and add itemCount
+    const categoryObj = transformEntity(category);
+    categoryObj.itemCount = itemCount;
+
     res.json({
       success: true,
       message: 'Category fetched successfully',
-      data: {
-        ...category,
-        itemCount
-      }
+      data: categoryObj
     });
   } catch (error) {
     logger.error('Get category by ID error:', error);
@@ -122,10 +125,13 @@ exports.createCategory = async (req, res) => {
 
     logger.info(`Category created by admin ${req.user.userId}: ${category.name}`);
 
+    // Transform category before sending
+    const transformedCategory = transformEntity(category);
+
     res.status(201).json({
       success: true,
       message: 'Category created successfully',
-      data: category
+      data: transformedCategory
     });
   } catch (error) {
     logger.error('Create category error:', error);
@@ -192,10 +198,13 @@ exports.updateCategory = async (req, res) => {
 
     logger.info(`Category updated by admin ${req.user.userId}: ${updatedCategory.name}`);
 
+    // Transform category before sending
+    const transformedCategory = transformEntity(updatedCategory);
+
     res.json({
       success: true,
       message: 'Category updated successfully',
-      data: updatedCategory
+      data: transformedCategory
     });
   } catch (error) {
     logger.error('Update category error:', error);
@@ -271,10 +280,13 @@ exports.toggleCategoryStatus = async (req, res) => {
 
     logger.info(`Category status toggled by admin ${req.user.userId}: ${updatedCategory.name} - ${updatedCategory.isActive ? 'Active' : 'Inactive'}`);
 
+    // Transform category before sending
+    const transformedCategory = transformEntity(updatedCategory);
+
     res.json({
       success: true,
       message: `Category ${updatedCategory.isActive ? 'activated' : 'deactivated'} successfully`,
-      data: updatedCategory
+      data: transformedCategory
     });
   } catch (error) {
     logger.error('Toggle category status error:', error);

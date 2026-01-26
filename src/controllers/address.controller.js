@@ -7,6 +7,7 @@ const Address = require('../models/Address.model');
 const User = require('../models/User.model');
 const logger = require('../config/logger');
 const { getCurrentISO } = require('../utils/dateFormatter');
+const { transformEntity, transformEntities } = require('../utils/transformers');
 
 const MAX_ADDRESSES = 5;
 
@@ -17,9 +18,12 @@ exports.getAddresses = async (req, res) => {
   try {
     const addresses = await Address.find({ user: req.user.userId }).sort({ isDefault: -1, createdAt: -1 });
 
+    // Transform addresses: set id to _id value
+    const transformedAddresses = transformEntities(addresses);
+
     res.json({
       success: true,
-      data: addresses
+      data: transformedAddresses
     });
   } catch (error) {
     logger.error('Get addresses error:', error);
@@ -82,10 +86,13 @@ exports.addAddress = async (req, res) => {
 
     logger.info(`Address added for user: ${req.user.userId}`);
 
+    // Transform address: set id to _id value
+    const transformedAddress = transformEntity(newAddress);
+
     res.json({
       success: true,
       message: 'Address added successfully',
-      data: newAddress
+      data: transformedAddress
     });
   } catch (error) {
     logger.error('Add address error:', error);
@@ -133,10 +140,13 @@ exports.updateAddress = async (req, res) => {
 
     logger.info(`Address updated for user: ${req.user.userId}`);
 
+    // Transform address: set id to _id value
+    const transformedAddress = transformEntity(address);
+
     res.json({
       success: true,
       message: 'Address updated successfully',
-      data: address
+      data: transformedAddress
     });
   } catch (error) {
     logger.error('Update address error:', error);
@@ -227,10 +237,13 @@ exports.setDefaultAddress = async (req, res) => {
 
     logger.info(`Default address set for user: ${req.user.userId}`);
 
+    // Transform address: set id to _id value
+    const transformedAddress = transformEntity(address);
+
     res.json({
       success: true,
       message: 'Default address updated successfully',
-      data: address
+      data: transformedAddress
     });
   } catch (error) {
     logger.error('Set default address error:', error);

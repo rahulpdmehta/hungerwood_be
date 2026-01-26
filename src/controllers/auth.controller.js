@@ -10,6 +10,7 @@ const { sendOTP, verifyOTP: verifyOTPService } = require('../services/otp.servic
 const config = require('../config/env');
 const logger = require('../config/logger');
 const { getCurrentISO } = require('../utils/dateFormatter');
+const { transformEntity, transformEntities, transformEntityWithNested } = require('../utils/transformers');
 
 /**
  * Generate and send OTP
@@ -95,17 +96,21 @@ exports.verifyOTP = async (req, res) => {
     // Check if profile is complete
     const isProfileComplete = !!(user.email && user.addresses && user.addresses.length > 0 && user.profilePic);
 
+    // Transform user: set id to _id value
+    const userObj = transformEntity(user);
+    const transformedUser = {
+      id: userObj.id,
+      phone: userObj.phone,
+      name: userObj.name,
+      email: userObj.email,
+      role: userObj.role
+    };
+
     res.json({
       success: true,
       message: 'Login successful',
       data: {
-        user: {
-          _id: user._id,
-          phone: user.phone,
-          name: user.name,
-          email: user.email,
-          role: user.role
-        },
+        user: transformedUser,
         token,
         isProfileComplete
       }
@@ -133,16 +138,20 @@ exports.getProfile = async (req, res) => {
       });
     }
 
+    // Transform user and addresses: set id to _id value
+    const userObj = transformEntityWithNested(user, ['addresses']);
+    const transformedAddresses = user.addresses ? transformEntities(user.addresses) : [];
+
     res.json({
       success: true,
       data: {
-        _id: user._id,
-        phone: user.phone,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        addresses: user.addresses,
-        profilePic: user.profilePic,
+        id: userObj.id,
+        phone: userObj.phone,
+        name: userObj.name,
+        email: userObj.email,
+        role: userObj.role,
+        addresses: transformedAddresses,
+        profilePic: userObj.profilePic,
         isProfileComplete: !!(user.email && user.addresses && user.addresses.length > 0 && user.profilePic)
       }
     });
@@ -195,16 +204,19 @@ exports.updateProfile = async (req, res) => {
 
     logger.info(`Profile updated for user: ${user.phone}`);
 
+    // Transform user: set id to _id value
+    const transformedUser = transformEntity(user);
+
     res.json({
       success: true,
       message: 'Profile updated successfully',
       data: {
-        _id: user._id,
-        phone: user.phone,
-        name: user.name,
-        email: user.email,
-        profilePic: user.profilePic,
-        role: user.role
+        id: transformedUser.id,
+        phone: transformedUser.phone,
+        name: transformedUser.name,
+        email: transformedUser.email,
+        profilePic: transformedUser.profilePic,
+        role: transformedUser.role
       }
     });
   } catch (error) {
@@ -301,19 +313,23 @@ exports.completeProfile = async (req, res) => {
       ? `Profile completed successfully. ${referralMessage}`
       : 'Profile completed successfully';
 
+    // Transform user and addresses: set id to _id value
+    const userObj = transformEntityWithNested(user, ['addresses']);
+    const transformedAddresses = user.addresses ? transformEntities(user.addresses) : [];
+
     res.json({
       success: true,
       message: responseMessage,
       referralApplied: !!referralMessage,
       data: {
-        _id: user._id,
-        phone: user.phone,
-        name: user.name,
-        email: user.email,
-        addresses: user.addresses,
-        profilePic: user.profilePic,
-        role: user.role,
-        isProfileComplete: user.isProfileComplete
+        id: userObj.id,
+        phone: userObj.phone,
+        name: userObj.name,
+        email: userObj.email,
+        addresses: transformedAddresses,
+        profilePic: userObj.profilePic,
+        role: userObj.role,
+        isProfileComplete: userObj.isProfileComplete
       }
     });
   } catch (error) {

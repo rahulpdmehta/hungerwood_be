@@ -5,15 +5,18 @@
 
 const bannerService = require('../services/banner.service');
 const logger = require('../config/logger');
+const { transformEntity, transformEntities } = require('../utils/transformers');
 
 // Get all active banners (public)
 const getActiveBanners = async (req, res) => {
   try {
     const banners = await bannerService.getActiveBanners();
+    // Transform banners: set id to _id value
+    const transformedBanners = transformEntities(banners);
     res.status(200).json({
       success: true,
-      data: banners,
-      count: banners.length,
+      data: transformedBanners,
+      count: transformedBanners.length,
     });
   } catch (error) {
     logger.error('Error fetching active banners:', error);
@@ -30,10 +33,12 @@ const getAllBanners = async (req, res) => {
   try {
     const { includeDisabled = true } = req.query;
     const banners = await bannerService.getAllBanners(includeDisabled === 'true');
+    // Transform banners: set id to _id value
+    const transformedBanners = transformEntities(banners);
     res.status(200).json({
       success: true,
-      data: banners,
-      count: banners.length,
+      data: transformedBanners,
+      count: transformedBanners.length,
     });
   } catch (error) {
     logger.error('Error fetching all banners:', error);
@@ -58,9 +63,12 @@ const getBannerById = async (req, res) => {
       });
     }
 
+    // Transform banner: set id to _id value
+    const transformedBanner = transformEntity(banner);
+
     res.status(200).json({
       success: true,
-      data: banner,
+      data: transformedBanner,
     });
   } catch (error) {
     logger.error('Error fetching banner by ID:', error);
@@ -80,10 +88,13 @@ const createBanner = async (req, res) => {
     
     logger.info(`Banner created: ${newBanner.id} by admin: ${req.user.id}`);
     
+    // Transform banner: set id to _id value
+    const transformedBanner = transformEntity(newBanner);
+
     res.status(201).json({
       success: true,
       message: 'Banner created successfully',
-      data: newBanner,
+      data: transformedBanner,
     });
   } catch (error) {
     logger.error('Error creating banner:', error);
@@ -112,10 +123,13 @@ const updateBanner = async (req, res) => {
 
     logger.info(`Banner updated: ${id} by admin: ${req.user.id}`);
     
+    // Transform banner: set id to _id value
+    const transformedBanner = transformEntity(updatedBanner);
+
     res.status(200).json({
       success: true,
       message: 'Banner updated successfully',
-      data: updatedBanner,
+      data: transformedBanner,
     });
   } catch (error) {
     logger.error('Error updating banner:', error);
@@ -142,10 +156,13 @@ const toggleBannerStatus = async (req, res) => {
 
     logger.info(`Banner status toggled: ${id} (enabled: ${updatedBanner.enabled}) by admin: ${req.user.id}`);
     
+    // Transform banner: set id to _id value
+    const transformedBanner = transformEntity(updatedBanner);
+
     res.status(200).json({
       success: true,
       message: `Banner ${updatedBanner.enabled ? 'enabled' : 'disabled'} successfully`,
-      data: updatedBanner,
+      data: transformedBanner,
     });
   } catch (error) {
     logger.error('Error toggling banner status:', error);

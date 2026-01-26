@@ -6,6 +6,7 @@
 const walletService = require('../services/wallet.service');
 const referralService = require('../services/referral.service');
 const logger = require('../config/logger');
+const { transformEntities } = require('../utils/transformers');
 
 class WalletController {
     /**
@@ -49,9 +50,15 @@ class WalletController {
                 type
             });
 
+            // Transform transactions: set id to _id value
+            const transformedTransactions = transformEntities(result.transactions || []);
+
             res.json({
                 success: true,
-                data: result
+                data: {
+                    ...result,
+                    transactions: transformedTransactions
+                }
             });
         } catch (error) {
             logger.error('Error in getTransactions:', error);

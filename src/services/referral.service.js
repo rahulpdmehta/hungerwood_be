@@ -197,20 +197,20 @@ class ReferralService {
 
             // Credit bonus to new user
             try {
-                await walletService.creditWallet(
-                    newUser._id,
-                    config.referralBonusNewUser,
-                    TRANSACTION_REASONS.REFERRAL_BONUS_NEW_USER,
-                    {
-                        orderId: order._id,
-                        referralId: referrer._id,
-                        description: `Referral bonus for using code ${referrer.referralCode}`,
-                        metadata: {
-                            referrerCode: referrer.referralCode,
-                            firstOrderAmount: order.totalAmount
-                        }
+            await walletService.creditWallet(
+                newUser._id,
+                config.referralBonusNewUser,
+                TRANSACTION_REASONS.REFERRAL_BONUS_NEW_USER,
+                {
+                    orderId: order._id,
+                    referralId: referrer._id,
+                    description: `Referral bonus for using code ${referrer.referralCode}`,
+                    metadata: {
+                        referrerCode: referrer.referralCode,
+                        firstOrderAmount: order.totalAmount
                     }
-                );
+                }
+            );
                 logger.info(`✅ Successfully credited ₹${config.referralBonusNewUser} to new user ${newUser._id}`);
             } catch (creditError) {
                 logger.error(`❌ Failed to credit new user wallet:`, creditError);
@@ -219,21 +219,21 @@ class ReferralService {
 
             // Credit bonus to referrer
             try {
-                await walletService.creditWallet(
-                    referrer._id,
-                    config.referralBonusReferrer,
-                    TRANSACTION_REASONS.REFERRAL_BONUS_REFERRER,
-                    {
-                        orderId: order._id,
-                        referralId: newUser._id,
-                        description: `Referral bonus for referring ${newUser.name || 'user'}`,
-                        metadata: {
-                            referredUserName: newUser.name,
-                            referredUserPhone: newUser.phone,
-                            firstOrderAmount: order.totalAmount
-                        }
+            await walletService.creditWallet(
+                referrer._id,
+                config.referralBonusReferrer,
+                TRANSACTION_REASONS.REFERRAL_BONUS_REFERRER,
+                {
+                    orderId: order._id,
+                    referralId: newUser._id,
+                    description: `Referral bonus for referring ${newUser.name || 'user'}`,
+                    metadata: {
+                        referredUserName: newUser.name,
+                        referredUserPhone: newUser.phone,
+                        firstOrderAmount: order.totalAmount
                     }
-                );
+                }
+            );
                 logger.info(`✅ Successfully credited ₹${config.referralBonusReferrer} to referrer ${referrer._id}`);
             } catch (creditError) {
                 logger.error(`❌ Failed to credit referrer wallet:`, creditError);
