@@ -6,6 +6,7 @@
 const Order = require('../models/Order.model');
 const MenuItem = require('../models/MenuItem.model');
 const User = require('../models/User.model');
+const Restaurant = require('../models/Restaurant.model');
 const logger = require('../config/logger');
 const walletService = require('../services/wallet.service');
 const referralService = require('../services/referral.service');
@@ -34,6 +35,17 @@ exports.createOrder = async (req, res) => {
       walletUsed,
       totalAmount
     } = req.body;
+
+    // Check restaurant status - block orders if restaurant is closed
+    const restaurant = await Restaurant.getRestaurant();
+    if (!restaurant.isOpen) {
+      const message = restaurant.closingMessage || 'Restaurant is currently closed. Please try again later.';
+      logger.warn(`Order attempt blocked - Restaurant is closed. User: ${userId}`);
+      return res.status(403).json({
+        success: false,
+        message: message
+      });
+    }
 
     // Validate items
     if (!items || items.length === 0) {

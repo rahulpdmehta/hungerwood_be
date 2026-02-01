@@ -14,8 +14,9 @@ const addressSchema = new mongoose.Schema({
   
   label: {
     type: String,
-    enum: ['Home', 'Work', 'Other'],
-    default: 'Home'
+    required: [true, 'Label is required'],
+    trim: true,
+    maxlength: [50, 'Label cannot exceed 50 characters']
   },
   
   street: {

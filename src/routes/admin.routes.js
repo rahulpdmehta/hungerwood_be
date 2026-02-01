@@ -56,4 +56,8 @@ router.get('/dashboard/orders-analytics', adminController.getOrdersAnalytics);
 router.get('/dashboard/menu-analytics', adminController.getMenuAnalytics);
 router.get('/dashboard/customer-analytics', adminController.getCustomerAnalytics);
 
+// ==================== RESTAURANT MANAGEMENT ====================
+router.get('/restaurant/status', adminController.getRestaurantStatus);
+router.patch('/restaurant/status', adminController.updateRestaurantStatus);
+
 module.exports = router;

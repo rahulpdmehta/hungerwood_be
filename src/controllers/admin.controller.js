@@ -7,6 +7,7 @@ const Order = require('../models/Order.model');
 const User = require('../models/User.model');
 const MenuItem = require('../models/MenuItem.model');
 const Category = require('../models/Category.model');
+const Restaurant = require('../models/Restaurant.model');
 const orderService = require('../services/order.service');
 const menuService = require('../services/menu.service');
 const walletService = require('../services/wallet.service');
@@ -691,6 +692,87 @@ const getCustomerAnalytics = async (req, res, next) => {
   }
 };
 
+/**
+ * Get restaurant status (Admin)
+ * GET /api/admin/restaurant/status
+ */
+const getRestaurantStatus = async (req, res, next) => {
+  try {
+    const restaurant = await Restaurant.getRestaurant();
+    
+    const { transformEntity } = require('../utils/transformers');
+    const transformedRestaurant = transformEntity(restaurant);
+
+    return successResponse(
+      res,
+      HTTP_STATUS.OK,
+      'Restaurant status fetched successfully',
+      {
+        isOpen: transformedRestaurant.isOpen,
+        closingMessage: transformedRestaurant.closingMessage || '',
+        updatedAt: transformedRestaurant.updatedAt
+      }
+    );
+  } catch (error) {
+    logger.error('Error fetching restaurant status:', error);
+    next(error);
+  }
+};
+
+/**
+ * Update restaurant status (Admin)
+ * PATCH /api/admin/restaurant/status
+ */
+const updateRestaurantStatus = async (req, res, next) => {
+  try {
+    const { isOpen, closingMessage } = req.body;
+
+    if (typeof isOpen !== 'boolean') {
+      return errorResponse(
+        res,
+        HTTP_STATUS.BAD_REQUEST,
+        'isOpen must be a boolean value'
+      );
+    }
+
+    // Validate closing message length
+    if (closingMessage && closingMessage.length > 200) {
+      return errorResponse(
+        res,
+        HTTP_STATUS.BAD_REQUEST,
+        'Closing message cannot exceed 200 characters'
+      );
+    }
+
+    const restaurant = await Restaurant.getRestaurant();
+    
+    // Update restaurant status
+    restaurant.isOpen = isOpen;
+    restaurant.closingMessage = closingMessage || '';
+    restaurant.updatedBy = req.user.userId;
+    await restaurant.save();
+
+    logger.info(`Restaurant status updated by admin ${req.user.userId}: ${isOpen ? 'OPEN' : 'CLOSED'}`);
+
+    const { transformEntity } = require('../utils/transformers');
+    const transformedRestaurant = transformEntity(restaurant);
+
+    return successResponse(
+      res,
+      HTTP_STATUS.OK,
+      `Restaurant is now ${isOpen ? 'open' : 'closed'}`,
+      {
+        isOpen: transformedRestaurant.isOpen,
+        closingMessage: transformedRestaurant.closingMessage || '',
+        updatedAt: transformedRestaurant.updatedAt
+      }
+    );
+  } catch (error) {
+    logger.error('Error updating restaurant status:', error);
+    next(error);
+  }
+};
+
 module.exports = {
   getAllOrders,
   updateOrderStatus,
@@ -705,5 +787,7 @@ module.exports = {
   getDashboardStats,
   getOrdersAnalytics,
   getMenuAnalytics,
-  getCustomerAnalytics
+  getCustomerAnalytics,
+  getRestaurantStatus,
+  updateRestaurantStatus
 };
