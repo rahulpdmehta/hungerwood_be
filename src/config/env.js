@@ -53,4 +53,8 @@ module.exports = {
   maxWalletUsagePercent: parseInt(process.env.MAX_WALLET_USAGE_PERCENT) || 50,
   minOrderAmountForReferral: parseInt(process.env.MIN_ORDER_AMOUNT_FOR_REFERRAL) || 199,
 
+  // Razorpay
+  razorpayKeyId: process.env.RAZORPAY_KEY_ID || '',
+  razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || '',
+
 };

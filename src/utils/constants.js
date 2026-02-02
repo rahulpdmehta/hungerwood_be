@@ -31,7 +31,9 @@ module.exports = {
   PAYMENT_METHODS: {
     UPI: 'UPI',
     CASH: 'CASH',
-    CARD: 'CARD'
+    CARD: 'CARD',
+    RAZORPAY: 'RAZORPAY',
+    WALLET: 'WALLET'
   },
 
   // Tax & Fees

@@ -87,6 +87,20 @@ const orderSchema = new mongoose.Schema({
     default: 'PENDING'
   },
   
+  // Payment details (for Razorpay and other payment gateways)
+  paymentDetails: {
+    razorpayOrderId: String,
+    razorpayPaymentId: String,
+    razorpaySignature: String
+  },
+  
+  // Wallet usage
+  walletUsed: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  
   // Order status
   status: {
     type: String,

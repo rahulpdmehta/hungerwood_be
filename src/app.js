@@ -27,6 +27,7 @@ const orderRoutes = require('./routes/order.routes');
 const adminRoutes = require('./routes/admin.routes');
 const addressRoutes = require('./routes/address.routes');
 const bannerRoutes = require('./routes/banner.routes');
+const paymentRoutes = require('./routes/payment.routes');
 
 // Initialize app
 const app = express();
@@ -229,6 +230,7 @@ app.use('/api/restaurant', require('./routes/restaurant.routes')); // Public res
 
 app.use('/api/orders', orderRoutes);
 app.use('/api/wallet', require('./routes/wallet.routes'));
+app.use('/api/payment', paymentRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/addresses', addressRoutes);
 
