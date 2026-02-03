@@ -7,6 +7,7 @@ const User = require('../models/User.model');
 const { generateOTP } = require('../utils/helpers');
 const config = require('../config/env');
 const logger = require('../config/logger');
+const msg91Service = require('./msg91.service');
 
 /**
  * Send OTP to phone number
@@ -36,8 +37,21 @@ const sendOTP = async (phone) => {
       console.log(`\n🔐 OTP for ${phone}: ${otp}\n`);
     }
     
-    // TODO: In production, send OTP via SMS service
-    // await smsService.send(phone, `Your HungerWood OTP is: ${otp}. Valid for 5 minutes.`);
+    // Send OTP via MSG91 if enabled
+    if (config.msg91Enabled && config.msg91AuthKey) {
+      console.log('config.msg91Enabled', config.msg91Enabled);
+      try {
+        const msg91Result = await msg91Service.sendOTP(phone, otp);
+        console.log('msg91Result', msg91Result);
+        if (!msg91Result.success) {
+          logger.warn(`MSG91 OTP send failed for ${phone}: ${msg91Result.message}`);
+          // Continue with local storage even if MSG91 fails
+        }
+      } catch (error) {
+        logger.error(`MSG91 OTP send error for ${phone}:`, error);
+        // Continue with local storage even if MSG91 fails
+      }
+    }
     
     return {
       success: true,

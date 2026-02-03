@@ -57,4 +57,9 @@ module.exports = {
   razorpayKeyId: process.env.RAZORPAY_KEY_ID || '',
   razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || '',
 
+  // MSG91 OTP Service
+  msg91AuthKey: process.env.MSG91_AUTH_KEY || '',
+  msg91SenderId: process.env.MSG91_SENDER_ID || 'HUNGER',
+  msg91Enabled: process.env.MSG91_ENABLED === 'true' || false,
+
 };

@@ -9,6 +9,7 @@ const adminController = require('../controllers/admin.controller');
 const categoryController = require('../controllers/category.controller');
 const menuController = require('../controllers/menu.controller');
 const orderController = require('../controllers/order.controller');
+const photoController = require('../controllers/photo.controller');
 const { authenticate } = require('../middlewares/auth.middleware');
 const { isAdmin } = require('../middlewares/role.middleware');
 const { upload } = require('../middlewares/upload.middleware');
@@ -59,5 +60,12 @@ router.get('/dashboard/customer-analytics', adminController.getCustomerAnalytics
 // ==================== RESTAURANT MANAGEMENT ====================
 router.get('/restaurant/status', adminController.getRestaurantStatus);
 router.patch('/restaurant/status', adminController.updateRestaurantStatus);
+
+// ==================== PHOTO LIBRARY MANAGEMENT ====================
+router.get('/photos', photoController.getAllPhotos);
+router.get('/photos/:id', photoController.getPhotoById);
+router.post('/photos', photoController.createPhoto);
+router.put('/photos/:id', photoController.updatePhoto);
+router.delete('/photos/:id', photoController.deletePhoto);
 
 module.exports = router;

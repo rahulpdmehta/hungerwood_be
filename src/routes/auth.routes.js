@@ -11,6 +11,7 @@ const { validate, sendOTPSchema, verifyOTPSchema } = require('../middlewares/val
 // Public routes
 router.post('/send-otp', validate(sendOTPSchema), authController.sendOTP);
 router.post('/verify-otp', validate(verifyOTPSchema), authController.verifyOTP);
+router.post('/verify-msg91-token', authController.verifyMSG91Token);
 
 // Protected routes
 router.get('/me', authenticate, authController.getProfile);

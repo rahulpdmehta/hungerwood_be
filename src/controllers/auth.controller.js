@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User.model');
 const Address = require('../models/Address.model');
 const { sendOTP, verifyOTP: verifyOTPService } = require('../services/otp.service');
+const msg91Service = require('../services/msg91.service');
 const config = require('../config/env');
 const logger = require('../config/logger');
 const { getCurrentISO } = require('../utils/dateFormatter');
@@ -40,13 +41,181 @@ exports.sendOTP = async (req, res) => {
 };
 
 /**
+ * Verify MSG91 widget access token and login/register user
+ * This endpoint is used when MSG91 widget is integrated on frontend
+ */
+exports.verifyMSG91Token = async (req, res) => {
+  try {
+    const { accessToken } = req.body;
+
+    if (!accessToken) {
+      return res.status(400).json({
+        success: false,
+        message: 'Access token is required'
+      });
+    }
+
+    // Verify token with MSG91
+    const verifyResult = await msg91Service.verifyAccessToken(accessToken);
+    console.log('verifyResult', verifyResult);
+    if (!verifyResult.success) {
+      return res.status(400).json({
+        success: false,
+        message: verifyResult.message || 'Token verification failed'
+      });
+    }
+
+    const phone = verifyResult.phone;
+
+    // Find or create user
+    let user = await User.findOne({ phone });
+
+    if (!user) {
+      // Create new user
+      const role = phone === config.adminPhone ? 'admin' : 'customer';
+      const name = phone === config.adminPhone ? config.adminName : 'Customer';
+
+      user = new User({
+        phone,
+        name,
+        role,
+        isActive: true
+      });
+      await user.save();
+
+      logger.info(`New user created via MSG91: ${phone}`);
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      {
+        userId: user._id,
+        phone: user.phone,
+        role: user.role
+      },
+      config.jwtSecret,
+      { expiresIn: config.jwtExpiresIn }
+    );
+
+    logger.info(`User logged in via MSG91: ${phone}`);
+
+    // Populate addresses if they exist
+    if (user.addresses && user.addresses.length > 0) {
+      await user.populate('addresses');
+    }
+
+    // Check if profile is complete
+    const isProfileComplete = !!(user.email && user.addresses && user.addresses.length > 0 && user.profilePic);
+
+    // Transform user: set id to _id value
+    const userObj = transformEntity(user);
+    const transformedUser = {
+      id: userObj.id,
+      phone: userObj.phone,
+      name: userObj.name,
+      email: userObj.email,
+      role: userObj.role
+    };
+
+    res.json({
+      success: true,
+      message: 'Login successful',
+      data: {
+        user: transformedUser,
+        token,
+        isProfileComplete
+      }
+    });
+  } catch (error) {
+    logger.error('Verify MSG91 token error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to verify token'
+    });
+  }
+};
+
+/**
  * Verify OTP and login/register user
+ * This endpoint is used for manual OTP verification (fallback)
  */
 exports.verifyOTP = async (req, res) => {
   try {
     const { phone, otp } = req.body;
 
-    // Verify OTP using service
+    // If MSG91 is enabled, try MSG91 verification first
+    if (config.msg91Enabled && config.msg91AuthKey) {
+      try {
+        const msg91Result = await msg91Service.verifyOTP(phone, otp);
+        if (msg91Result.success) {
+          // MSG91 verification successful, proceed with login
+          // Find or create user
+          let user = await User.findOne({ phone });
+
+          if (!user) {
+            const role = phone === config.adminPhone ? 'admin' : 'customer';
+            const name = phone === config.adminPhone ? config.adminName : 'Customer';
+
+            user = new User({
+              phone,
+              name,
+              role,
+              isActive: true
+            });
+            await user.save();
+
+            logger.info(`New user created via MSG91 OTP: ${phone}`);
+          }
+
+          // Generate JWT token
+          const token = jwt.sign(
+            {
+              userId: user._id,
+              phone: user.phone,
+              role: user.role
+            },
+            config.jwtSecret,
+            { expiresIn: config.jwtExpiresIn }
+          );
+
+          logger.info(`User logged in via MSG91 OTP: ${phone}`);
+
+          // Populate addresses if they exist
+          if (user.addresses && user.addresses.length > 0) {
+            await user.populate('addresses');
+          }
+
+          // Check if profile is complete
+          const isProfileComplete = !!(user.email && user.addresses && user.addresses.length > 0 && user.profilePic);
+
+          // Transform user
+          const userObj = transformEntity(user);
+          const transformedUser = {
+            id: userObj.id,
+            phone: userObj.phone,
+            name: userObj.name,
+            email: userObj.email,
+            role: userObj.role
+          };
+
+          return res.json({
+            success: true,
+            message: 'Login successful',
+            data: {
+              user: transformedUser,
+              token,
+              isProfileComplete
+            }
+          });
+        }
+        // If MSG91 verification fails, fall back to local verification
+      } catch (error) {
+        logger.warn('MSG91 OTP verification failed, falling back to local verification:', error);
+        // Fall through to local verification
+      }
+    }
+
+    // Verify OTP using local service (fallback)
     const verifyResult = await verifyOTPService(phone, otp);
 
     if (!verifyResult.success) {

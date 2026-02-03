@@ -231,6 +231,7 @@ app.use('/api/restaurant', require('./routes/restaurant.routes')); // Public res
 app.use('/api/orders', orderRoutes);
 app.use('/api/wallet', require('./routes/wallet.routes'));
 app.use('/api/payment', paymentRoutes);
+app.use('/api/photos', require('./routes/photo.routes')); // Public photo library endpoint
 app.use('/api/admin', adminRoutes);
 app.use('/api/addresses', addressRoutes);
 
