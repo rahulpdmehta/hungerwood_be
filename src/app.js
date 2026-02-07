@@ -80,8 +80,8 @@ const corsOptions = {
       return callback(null, true);
     }
     
-    // Normalize origin by removing trailing slash
-    const normalizedOrigin = origin.replace(/\/$/, '');
+    // Normalize origin by removing trailing slash and converting to lowercase for comparison
+    const normalizedOrigin = origin.replace(/\/$/, '').toLowerCase();
     
     // In development, allow all localhost origins
     if (config.nodeEnv === 'development') {
@@ -90,17 +90,16 @@ const corsOptions = {
       }
     }
     
-    // Normalize allowed origins for comparison (remove trailing slashes)
-    const normalizedAllowedOrigins = config.allowedOrigins.map(o => o.replace(/\/$/, ''));
+    // Normalize allowed origins for comparison (remove trailing slashes, lowercase)
+    const normalizedAllowedOrigins = config.allowedOrigins.map(o => o.replace(/\/$/, '').toLowerCase());
     
-    // Check if origin is in allowed list (exact match)
+    // Check if origin is in allowed list (exact match, case-insensitive)
     if (normalizedAllowedOrigins.includes(normalizedOrigin)) {
       return callback(null, true);
     }
     
     // Allow Vercel preview deployments (e.g., hungerwood-fe-git-main.vercel.app)
-    // If we have any .vercel.app domain in allowed origins, allow all .vercel.app domains
-    // This is safe because Vercel domains are controlled by Vercel
+    // If we have any .vercel.app domain in allowed origins, allow matching base domains
     if (normalizedOrigin.includes('.vercel.app')) {
       // Check if we have any .vercel.app domain in allowed origins
       const hasVercelDomain = normalizedAllowedOrigins.some(origin => origin.includes('.vercel.app'));
@@ -109,14 +108,22 @@ const corsOptions = {
         // Extract base name for matching (e.g., hungerwood-fe from hungerwood-fe-git-main.vercel.app)
         const vercelMatch = normalizedOrigin.match(/https?:\/\/([^.]+)\.vercel\.app/);
         if (vercelMatch) {
-          const requestBaseName = vercelMatch[1].split('-git-')[0].split('-')[0]; // Get first part
+          const requestDomain = vercelMatch[1];
+          // Remove -git-* suffix if present, otherwise use the full domain name
+          const requestBaseName = requestDomain.includes('-git-') 
+            ? requestDomain.split('-git-')[0] 
+            : requestDomain;
           
           // Check if any allowed origin matches this base domain
           const isAllowedVercelDomain = normalizedAllowedOrigins.some(allowedOrigin => {
             if (allowedOrigin.includes('.vercel.app')) {
               const allowedMatch = allowedOrigin.match(/https?:\/\/([^.]+)\.vercel\.app/);
               if (allowedMatch) {
-                const allowedBaseName = allowedMatch[1].split('-git-')[0].split('-')[0];
+                const allowedDomain = allowedMatch[1];
+                // Remove -git-* suffix if present, otherwise use the full domain name
+                const allowedBaseName = allowedDomain.includes('-git-') 
+                  ? allowedDomain.split('-git-')[0] 
+                  : allowedDomain;
                 // Allow if base names match (e.g., hungerwood-fe matches hungerwood-fe-git-main)
                 return allowedBaseName === requestBaseName;
               }
@@ -125,17 +132,16 @@ const corsOptions = {
           });
           
           if (isAllowedVercelDomain) {
+            logger.info(`CORS: Allowed Vercel domain: ${normalizedOrigin} (matches base: ${requestBaseName})`);
             return callback(null, true);
           }
         }
       }
     }
     
-    // Log rejected origin for debugging (only in development)
-    if (config.nodeEnv === 'development') {
-      logger.warn(`CORS: Rejected origin: ${normalizedOrigin}`);
-      logger.warn(`CORS: Allowed origins: ${normalizedAllowedOrigins.join(', ')}`);
-    }
+    // Log rejected origin for debugging
+    logger.warn(`CORS: Rejected origin: ${normalizedOrigin}`);
+    logger.warn(`CORS: Allowed origins: ${normalizedAllowedOrigins.join(', ')}`);
     
     // Reject other origins
     callback(new Error('Not allowed by CORS'));
