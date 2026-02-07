@@ -62,4 +62,11 @@ module.exports = {
   msg91SenderId: process.env.MSG91_SENDER_ID || 'HUNGER',
   msg91Enabled: process.env.MSG91_ENABLED === 'true' || false,
 
+  // MSG91 WhatsApp OTP Service
+  msg91WhatsAppEnabled: process.env.MSG91_WHATSAPP_ENABLED === 'true' || false,
+  msg91WhatsAppIntegratedNumber: process.env.MSG91_WHATSAPP_INTEGRATED_NUMBER || '',
+  msg91WhatsAppTemplateName: process.env.MSG91_WHATSAPP_TEMPLATE_NAME || 'login_otp',
+  msg91WhatsAppNamespace: process.env.MSG91_WHATSAPP_NAMESPACE || '',
+  msg91WhatsAppLanguageCode: process.env.MSG91_WHATSAPP_LANGUAGE_CODE || 'en',
+
 };

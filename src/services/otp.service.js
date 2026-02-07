@@ -37,12 +37,45 @@ const sendOTP = async (phone) => {
       console.log(`\n🔐 OTP for ${phone}: ${otp}\n`);
     }
     
-    // Send OTP via MSG91 if enabled
-    if (config.msg91Enabled && config.msg91AuthKey) {
-      console.log('config.msg91Enabled', config.msg91Enabled);
+    // Send OTP via MSG91 WhatsApp if enabled (preferred)
+    if (config.msg91WhatsAppEnabled && config.msg91AuthKey && config.msg91WhatsAppIntegratedNumber) {
+      try {
+        const whatsappResult = await msg91Service.sendWhatsAppOTP(phone, otp);
+        if (whatsappResult.success) {
+          logger.info(`WhatsApp OTP sent successfully to ${phone}`);
+        } else {
+          logger.warn(`MSG91 WhatsApp OTP send failed for ${phone}: ${whatsappResult.message}`);
+          // Fallback to regular SMS if WhatsApp fails
+          if (config.msg91Enabled) {
+            try {
+              const smsResult = await msg91Service.sendOTP(phone, otp);
+              if (!smsResult.success) {
+                logger.warn(`MSG91 SMS OTP send also failed for ${phone}: ${smsResult.message}`);
+              }
+            } catch (smsError) {
+              logger.error(`MSG91 SMS fallback error for ${phone}:`, smsError);
+            }
+          }
+        }
+      } catch (error) {
+        logger.error(`MSG91 WhatsApp OTP send error for ${phone}:`, error);
+        // Fallback to regular SMS if WhatsApp fails
+        if (config.msg91Enabled) {
+          try {
+            const smsResult = await msg91Service.sendOTP(phone, otp);
+            if (!smsResult.success) {
+              logger.warn(`MSG91 SMS OTP send also failed for ${phone}: ${smsResult.message}`);
+            }
+          } catch (smsError) {
+            logger.error(`MSG91 SMS fallback error for ${phone}:`, smsError);
+          }
+        }
+      }
+    }
+    // Fallback to regular SMS if WhatsApp is not enabled
+    else if (config.msg91Enabled && config.msg91AuthKey) {
       try {
         const msg91Result = await msg91Service.sendOTP(phone, otp);
-        console.log('msg91Result', msg91Result);
         if (!msg91Result.success) {
           logger.warn(`MSG91 OTP send failed for ${phone}: ${msg91Result.message}`);
           // Continue with local storage even if MSG91 fails
