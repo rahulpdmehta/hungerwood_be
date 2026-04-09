@@ -1,0 +1,165 @@
+[
+  {
+    "_id": "1769171297820_kkv7usdgo",
+    "userId": "1769171090644_ep0l43o18",
+    "type": "CREDIT",
+    "amount": 25,
+    "reason": "REFERRAL_BONUS_NEW_USER",
+    "orderId": "1769171297817_v021gkeut",
+    "referralId": "1769150085880_tyrdld97k",
+    "balanceAfter": 25,
+    "description": "Referral bonus for using code SUDHXDIE",
+    "metadata": {
+      "referrerCode": "SUDHXDIE",
+      "firstOrderAmount": 628
+    },
+    "createdAt": "2026-01-23T12:28:17.821Z"
+  },
+  {
+    "_id": "1769171297824_scxv8s802",
+    "userId": "1769150085880_tyrdld97k",
+    "type": "CREDIT",
+    "amount": 50,
+    "reason": "REFERRAL_BONUS_REFERRER",
+    "orderId": "1769171297817_v021gkeut",
+    "referralId": "1769171090644_ep0l43o18",
+    "balanceAfter": 50,
+    "description": "Referral bonus for referring dsdfds",
+    "metadata": {
+      "referredUserName": "dsdfds",
+      "referredUserPhone": "6782393922",
+      "firstOrderAmount": 628
+    },
+    "createdAt": "2026-01-23T12:28:17.824Z"
+  },
+  {
+    "_id": "1769177463782_e1s3qjv6r",
+    "userId": "1769177339567_6kbfwftaj",
+    "type": "CREDIT",
+    "amount": 50,
+    "reason": "REFERRAL_BONUS_NEW_USER",
+    "orderId": "1769177463774_bqg74phgz",
+    "referralId": "1769150085880_tyrdld97k",
+    "balanceAfter": 50,
+    "description": "Referral bonus for using code SUDHXDIE",
+    "metadata": {
+      "referrerCode": "SUDHXDIE",
+      "firstOrderAmount": 229
+    },
+    "createdAt": "2026-01-23T14:11:03.782Z"
+  },
+  {
+    "_id": "1769177463787_hez74oeg8",
+    "userId": "1769150085880_tyrdld97k",
+    "type": "CREDIT",
+    "amount": 50,
+    "reason": "REFERRAL_BONUS_REFERRER",
+    "orderId": "1769177463774_bqg74phgz",
+    "referralId": "1769177339567_6kbfwftaj",
+    "balanceAfter": 100,
+    "description": "Referral bonus for referring Test User 1",
+    "metadata": {
+      "referredUserName": "Test User 1",
+      "referredUserPhone": "9829302824",
+      "firstOrderAmount": 229
+    },
+    "createdAt": "2026-01-23T14:11:03.839Z"
+  },
+  {
+    "_id": "1769178723446_t707zimvl",
+    "userId": "1769150085880_tyrdld97k",
+    "type": "DEBIT",
+    "amount": 20,
+    "reason": "ORDER_PAYMENT",
+    "orderId": null,
+    "referralId": null,
+    "balanceAfter": 80,
+    "description": "Payment for order",
+    "metadata": {
+      "orderType": "DELIVERY",
+      "itemCount": 1
+    },
+    "createdAt": "2026-01-23T14:32:03.447Z"
+  },
+  {
+    "_id": "1769180877521_743vuqk40",
+    "userId": "1769150085880_tyrdld97k",
+    "type": "DEBIT",
+    "amount": 20,
+    "reason": "ORDER_PAYMENT",
+    "orderId": null,
+    "referralId": null,
+    "balanceAfter": 60,
+    "description": "Payment for order",
+    "metadata": {
+      "orderType": "DELIVERY",
+      "itemCount": 2
+    },
+    "createdAt": "2026-01-23T15:07:57.522Z"
+  },
+  {
+    "_id": "1769181367709_l94rtyw61",
+    "userId": "1769181236495_rwt1ojufc",
+    "type": "CREDIT",
+    "amount": 50,
+    "reason": "REFERRAL_BONUS_NEW_USER",
+    "orderId": "1769181367705_9lz5hmy8d",
+    "referralId": "1769150085880_tyrdld97k",
+    "balanceAfter": 50,
+    "description": "Referral bonus for using code SUDHXDIE",
+    "metadata": {
+      "referrerCode": "SUDHXDIE",
+      "firstOrderAmount": 744
+    },
+    "createdAt": "2026-01-23T15:16:07.709Z"
+  },
+  {
+    "_id": "1769181367712_s89hitr1x",
+    "userId": "1769150085880_tyrdld97k",
+    "type": "CREDIT",
+    "amount": 50,
+    "reason": "REFERRAL_BONUS_REFERRER",
+    "orderId": "1769181367705_9lz5hmy8d",
+    "referralId": "1769181236495_rwt1ojufc",
+    "balanceAfter": 110,
+    "description": "Referral bonus for referring test user 2",
+    "metadata": {
+      "referredUserName": "test user 2",
+      "referredUserPhone": "6976876977",
+      "firstOrderAmount": 744
+    },
+    "createdAt": "2026-01-23T15:16:07.712Z"
+  },
+  {
+    "_id": "1769182642086_gvvn6nmo9",
+    "userId": "1769181236495_rwt1ojufc",
+    "type": "DEBIT",
+    "amount": 50,
+    "reason": "ORDER_PAYMENT",
+    "orderId": null,
+    "referralId": null,
+    "balanceAfter": 0,
+    "description": "Payment for order",
+    "metadata": {
+      "orderType": "DELIVERY",
+      "itemCount": 1
+    },
+    "createdAt": "2026-01-23T15:37:22.087Z"
+  },
+  {
+    "_id": "1769225955216_97cvfjopl",
+    "userId": "1769150085880_tyrdld97k",
+    "type": "DEBIT",
+    "amount": 30,
+    "reason": "ORDER_PAYMENT",
+    "orderId": null,
+    "referralId": null,
+    "balanceAfter": 80,
+    "description": "Payment for order",
+    "metadata": {
+      "orderType": "DELIVERY",
+      "itemCount": 1
+    },
+    "createdAt": "2026-01-24T03:39:15.217Z"
+  }
+]

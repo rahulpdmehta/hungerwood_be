@@ -1,0 +1,47 @@
+[
+  {
+    "_id": "tandoor",
+    "name": "Tandoor",
+    "description": "Clay oven specialties",
+    "image": "https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?w=400&q=80",
+    "isActive": true,
+    "createdAt": "2026-01-23T13:03:35.287Z",
+    "updatedAt": "2026-01-23T13:03:35.287Z"
+  },
+  {
+    "_id": "chinese",
+    "name": "Chinese",
+    "description": "Indo-Chinese fusion",
+    "image": "https://images.unsplash.com/photo-1617093727343-374698b1b08d?w=400&q=80",
+    "isActive": true,
+    "createdAt": "2026-01-23T13:03:35.289Z",
+    "updatedAt": "2026-01-23T13:03:35.290Z"
+  },
+  {
+    "_id": "main-course",
+    "name": "Main Course",
+    "description": "Traditional Indian mains",
+    "image": "https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=400&q=80",
+    "isActive": true,
+    "createdAt": "2026-01-23T13:03:35.291Z",
+    "updatedAt": "2026-01-23T13:03:35.291Z"
+  },
+  {
+    "_id": "beverages",
+    "name": "Beverages",
+    "description": "Refreshing drinks",
+    "image": "https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=400&q=80",
+    "isActive": true,
+    "createdAt": "2026-01-23T13:03:35.292Z",
+    "updatedAt": "2026-01-23T13:03:35.292Z"
+  },
+  {
+    "_id": "desserts",
+    "name": "Desserts",
+    "description": "Sweet delights",
+    "image": "https://images.unsplash.com/photo-1563805042-7684c019e1cb?w=400&q=80",
+    "isActive": true,
+    "createdAt": "2026-01-23T13:03:35.293Z",
+    "updatedAt": "2026-01-23T13:03:35.294Z"
+  }
+]
