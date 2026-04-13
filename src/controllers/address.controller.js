@@ -39,21 +39,16 @@ exports.getAddresses = async (req, res) => {
  */
 exports.addAddress = async (req, res) => {
   try {
-    const { label, street, city, state, pincode } = req.body;
+    const { label, street } = req.body;
+    const city = 'Gaya';
+    const state = 'Bihar';
+    const pincode = '824201';
 
-    // Validate required fields
-    if (!label || !street || !city || !state || !pincode) {
+    // Validate required fields (only label + street required; city/state/pincode fixed)
+    if (!label || !street) {
       return res.status(400).json({
         success: false,
-        message: 'All fields are required: label, street, city, state, pincode'
-      });
-    }
-
-    // Validate pincode (6 digits)
-    if (!/^\d{6}$/.test(pincode)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Pincode must be 6 digits'
+        message: 'Label and street address are required'
       });
     }
 
@@ -109,7 +104,7 @@ exports.addAddress = async (req, res) => {
 exports.updateAddress = async (req, res) => {
   try {
     const { id } = req.params;
-    const { label, street, city, state, pincode } = req.body;
+    const { label, street } = req.body;
 
     // Find address belonging to user
     const address = await Address.findOne({ _id: id, user: req.user.userId });
@@ -121,20 +116,12 @@ exports.updateAddress = async (req, res) => {
       });
     }
 
-    // Validate pincode if provided
-    if (pincode && !/^\d{6}$/.test(pincode)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Pincode must be 6 digits'
-      });
-    }
-
-    // Update address fields
+    // Update address fields (city/state/pincode stay fixed to Gaya/Bihar/824201)
     if (label) address.label = label;
     if (street) address.street = street;
-    if (city) address.city = city;
-    if (state) address.state = state;
-    if (pincode) address.pincode = pincode;
+    address.city = 'Gaya';
+    address.state = 'Bihar';
+    address.pincode = '824201';
 
     await address.save();
 

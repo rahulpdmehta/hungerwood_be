@@ -32,19 +32,19 @@ const addressSchema = new mongoose.Schema({
   
   city: {
     type: String,
-    required: [true, 'City is required'],
+    default: 'Gaya',
     trim: true
   },
-  
+
   state: {
     type: String,
     default: 'Bihar',
     trim: true
   },
-  
+
   pincode: {
     type: String,
-    required: [true, 'Pincode is required'],
+    default: '824201',
     match: [/^\d{6}$/, 'Please provide a valid 6-digit pincode']
   },
   

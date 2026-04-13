@@ -105,7 +105,7 @@ exports.verifyMSG91Token = async (req, res) => {
     }
 
     // Check if profile is complete
-    const isProfileComplete = !!(user.email && user.addresses && user.addresses.length > 0 && user.profilePic);
+    const isProfileComplete = !!(user.addresses && user.addresses.length > 0 && user.profilePic);
 
     // Transform user: set id to _id value
     const userObj = transformEntity(user);
@@ -186,7 +186,7 @@ exports.verifyOTP = async (req, res) => {
           }
 
           // Check if profile is complete
-          const isProfileComplete = !!(user.email && user.addresses && user.addresses.length > 0 && user.profilePic);
+          const isProfileComplete = !!(user.addresses && user.addresses.length > 0 && user.profilePic);
 
           // Transform user
           const userObj = transformEntity(user);
@@ -263,7 +263,7 @@ exports.verifyOTP = async (req, res) => {
     }
 
     // Check if profile is complete
-    const isProfileComplete = !!(user.email && user.addresses && user.addresses.length > 0 && user.profilePic);
+    const isProfileComplete = !!(user.addresses && user.addresses.length > 0 && user.profilePic);
 
     // Transform user: set id to _id value
     const userObj = transformEntity(user);
@@ -321,7 +321,7 @@ exports.getProfile = async (req, res) => {
         role: userObj.role,
         addresses: transformedAddresses,
         profilePic: userObj.profilePic,
-        isProfileComplete: !!(user.email && user.addresses && user.addresses.length > 0 && user.profilePic)
+        isProfileComplete: !!(user.addresses && user.addresses.length > 0 && user.profilePic)
       }
     });
   } catch (error) {
@@ -404,29 +404,31 @@ exports.completeProfile = async (req, res) => {
   try {
     const { name, email, address, profilePic, referralCode } = req.body;
 
-    // Validate required fields
-    if (!name || !email || !address || !profilePic) {
+    // Validate required fields (email is optional)
+    if (!name || !address || !profilePic) {
       return res.status(400).json({
         success: false,
-        message: 'All fields are required: name, email, address, profilePic'
+        message: 'Required fields missing: name, address, profilePic'
       });
     }
 
-    // Validate address fields
-    if (!address.street || !address.city || !address.state || !address.pincode) {
+    // Only street is required from the user; city/state/pincode default to Gaya/Bihar/824201
+    if (!address.street) {
       return res.status(400).json({
         success: false,
-        message: 'Address must include: street, city, state, pincode'
+        message: 'Address street is required'
       });
     }
 
-    // Validate email format
-    const emailRegex = /^\S+@\S+\.\S+$/;
-    if (!emailRegex.test(email)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid email format'
-      });
+    // Validate email format only if provided
+    if (email) {
+      const emailRegex = /^\S+@\S+\.\S+$/;
+      if (!emailRegex.test(email)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid email format'
+        });
+      }
     }
 
     // Apply referral code if provided (optional)
@@ -449,23 +451,25 @@ exports.completeProfile = async (req, res) => {
       user: req.user.userId,
       label: address.label || 'Home',
       street: address.street,
-      city: address.city,
-      state: address.state,
-      pincode: address.pincode,
+      city: address.city || 'Gaya',
+      state: address.state || 'Bihar',
+      pincode: address.pincode || '824201',
       isDefault: true
     });
     await firstAddress.save();
 
     // Update user profile
+    const userUpdate = {
+      name,
+      addresses: [firstAddress._id],
+      profilePic,
+      isProfileComplete: true
+    };
+    if (email) userUpdate.email = email;
+
     const user = await User.findByIdAndUpdate(
       req.user.userId,
-      {
-        name,
-        email,
-        addresses: [firstAddress._id],
-        profilePic,
-        isProfileComplete: true
-      },
+      userUpdate,
       { new: true }
     ).populate('addresses');
 
