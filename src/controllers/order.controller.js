@@ -15,6 +15,7 @@ const config = require('../config/env');
 const { validateStatusTransition, getAllowedNextStatuses } = require('../utils/orderStatusValidator');
 const { ORDER_STATUS } = require('../utils/constants');
 const { getCurrentISO, addTime } = require('../utils/dateFormatter');
+const { isCategoryOrderable } = require('../utils/categoryWindow');
 
 /**
  * Create new order
@@ -94,6 +95,21 @@ exports.createOrder = async (req, res) => {
         message: 'All items must have menuItem ID, quantity, and price',
         invalidItems
       });
+    }
+
+    // Enforce per-category ordering window (e.g. Lunch 10:00–12:00 IST)
+    const itemIds = items.map(i => i.menuItem || i.id).filter(Boolean);
+    const menuItemDocs = await MenuItem.find({ _id: { $in: itemIds } }).populate('category');
+    const now = new Date();
+    for (const mi of menuItemDocs) {
+      const cat = mi.category;
+      if (cat && cat.isTimeRestricted && !isCategoryOrderable(cat, now)) {
+        logger.warn(`Order blocked — category "${cat.name}" outside window for user ${userId}`);
+        return res.status(403).json({
+          success: false,
+          message: `${cat.name} is only orderable between ${cat.availableFrom} and ${cat.availableTo} (IST).`
+        });
+      }
     }
 
     // Handle wallet payment if requested
