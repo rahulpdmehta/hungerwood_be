@@ -37,6 +37,23 @@ const categorySchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
+  },
+
+  isTimeRestricted: {
+    type: Boolean,
+    default: false
+  },
+
+  availableFrom: {
+    type: String,
+    trim: true,
+    default: null
+  },
+
+  availableTo: {
+    type: String,
+    trim: true,
+    default: null
   }
 }, {
   timestamps: true
