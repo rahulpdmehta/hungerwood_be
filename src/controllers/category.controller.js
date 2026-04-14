@@ -8,6 +8,21 @@ const MenuItem = require('../models/MenuItem.model');
 const logger = require('../config/logger');
 const { getCurrentISO } = require('../utils/dateFormatter');
 const { transformEntity, transformEntities } = require('../utils/transformers');
+const { isValidHHmm } = require('../utils/categoryWindow');
+
+/**
+ * Validate time-restriction fields. Returns null on success, or an error message.
+ */
+function validateTimeRestriction({ isTimeRestricted, availableFrom, availableTo }) {
+  if (!isTimeRestricted) return null;
+  if (!isValidHHmm(availableFrom) || !isValidHHmm(availableTo)) {
+    return 'availableFrom and availableTo must be in HH:mm 24h format';
+  }
+  if (availableFrom >= availableTo) {
+    return 'availableFrom must be earlier than availableTo';
+  }
+  return null;
+}
 
 /**
  * Get all categories
@@ -85,7 +100,29 @@ exports.getCategoryById = async (req, res) => {
  */
 exports.createCategory = async (req, res) => {
   try {
-    const { name, description, imageUrl, isActive = true } = req.body;
+    const {
+      name,
+      description,
+      imageUrl,
+      isActive = true,
+      isTimeRestricted = false,
+      availableFrom = null,
+      availableTo = null
+    } = req.body;
+
+    // Coerce (multipart/form-data sends strings)
+    const timeRestricted = isTimeRestricted === true || isTimeRestricted === 'true';
+    const from = availableFrom || null;
+    const to = availableTo || null;
+
+    const tError = validateTimeRestriction({
+      isTimeRestricted: timeRestricted,
+      availableFrom: from,
+      availableTo: to
+    });
+    if (tError) {
+      return res.status(400).json({ success: false, message: tError });
+    }
 
     // Validate required fields
     if (!name) {
@@ -118,7 +155,10 @@ exports.createCategory = async (req, res) => {
       name: name.trim(),
       description: description?.trim() || '',
       image: finalImageUrl,
-      isActive: Boolean(isActive)
+      isActive: Boolean(isActive) && isActive !== 'false',
+      isTimeRestricted: timeRestricted,
+      availableFrom: timeRestricted ? from : null,
+      availableTo: timeRestricted ? to : null
     });
 
     await category.save();
@@ -148,7 +188,7 @@ exports.createCategory = async (req, res) => {
  */
 exports.updateCategory = async (req, res) => {
   try {
-    const { name, description, imageUrl, isActive } = req.body;
+    const { name, description, imageUrl, isActive, isTimeRestricted, availableFrom, availableTo } = req.body;
 
     const category = await Category.findById(req.params.id);
 
@@ -182,6 +222,25 @@ exports.updateCategory = async (req, res) => {
       finalImageUrl = imageUrl;
     }
 
+    // Normalise time-restriction inputs (may arrive as strings via multipart)
+    const hasTimeFields =
+      isTimeRestricted !== undefined || availableFrom !== undefined || availableTo !== undefined;
+    let nextTimeRestricted, nextFrom, nextTo;
+    if (hasTimeFields) {
+      nextTimeRestricted =
+        isTimeRestricted === true || isTimeRestricted === 'true';
+      nextFrom = availableFrom || null;
+      nextTo = availableTo || null;
+      const tError = validateTimeRestriction({
+        isTimeRestricted: nextTimeRestricted,
+        availableFrom: nextFrom,
+        availableTo: nextTo
+      });
+      if (tError) {
+        return res.status(400).json({ success: false, message: tError });
+      }
+    }
+
     // Update category
     const updateData = {};
 
@@ -189,6 +248,11 @@ exports.updateCategory = async (req, res) => {
     if (description !== undefined) updateData.description = description.trim();
     if (finalImageUrl !== category.image) updateData.image = finalImageUrl;
     if (isActive !== undefined) updateData.isActive = Boolean(isActive);
+    if (hasTimeFields) {
+      updateData.isTimeRestricted = nextTimeRestricted;
+      updateData.availableFrom = nextTimeRestricted ? nextFrom : null;
+      updateData.availableTo = nextTimeRestricted ? nextTo : null;
+    }
 
     const updatedCategory = await Category.findByIdAndUpdate(
       req.params.id,
