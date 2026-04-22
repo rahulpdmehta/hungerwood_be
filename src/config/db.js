@@ -8,15 +8,20 @@ const logger = require('./logger');
 
 const connectDB = async () => {
   try {
-    // Connection options with timeout settings
+    // Connection options with timeout settings.
+    // serverSelectionTimeoutMS was 5000 — too tight for Atlas ap-south-1
+    // over residential/coffee-shop wifi (cold replica-set discovery + TLS
+    // handshake often exceeds 5s). Staging deploys sit close to the cluster
+    // so 5s worked there. 20s gives local dev enough headroom while still
+    // failing fast if Atlas is actually down.
     const options = {
       useNewUrlParser: true,
       useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
-      socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
-      connectTimeoutMS: 10000, // Give up initial connection after 10s
-      maxPoolSize: 10, // Maintain up to 10 socket connections
-      minPoolSize: 1, // Maintain at least 1 socket connection
+      serverSelectionTimeoutMS: 20000,
+      socketTimeoutMS: 45000,
+      connectTimeoutMS: 20000,
+      maxPoolSize: 10,
+      minPoolSize: 1,
       retryWrites: true,
       w: 'majority'
     };
