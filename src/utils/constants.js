@@ -5,8 +5,13 @@
 module.exports = {
   // User Roles
   ROLES: {
-    USER: 'USER',
-    ADMIN: 'ADMIN'
+    USER: 'USER',                        // existing — customer role
+    RESTAURANT_ADMIN: 'RESTAURANT_ADMIN',
+    GROCERY_ADMIN: 'GROCERY_ADMIN',
+    SUPER_ADMIN: 'SUPER_ADMIN'
+  },
+  LEGACY_ROLES: {
+    ADMIN: 'ADMIN'                       // kept solely for the migration script; DO NOT reference elsewhere
   },
 
   // Order Types

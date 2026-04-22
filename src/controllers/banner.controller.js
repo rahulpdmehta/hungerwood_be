@@ -10,9 +10,12 @@ const { transformEntity, transformEntities } = require('../utils/transformers');
 // Get all active banners (public)
 const getActiveBanners = async (req, res) => {
   try {
+    const { section } = req.query;
     const banners = await bannerService.getActiveBanners();
+    // Filter by section when provided
+    const filtered = section ? banners.filter(b => b.section === section) : banners;
     // Transform banners: set id to _id value
-    const transformedBanners = transformEntities(banners);
+    const transformedBanners = transformEntities(filtered);
     res.status(200).json({
       success: true,
       data: transformedBanners,
@@ -30,10 +33,12 @@ const getActiveBanners = async (req, res) => {
 // Get all banners (admin)
 const getAllBanners = async (req, res) => {
   try {
-    const { includeDisabled = true } = req.query;
+    const { includeDisabled = true, section } = req.query;
     const banners = await bannerService.getAllBanners(includeDisabled === 'true');
+    // Filter by section when provided
+    const filtered = section ? banners.filter(b => b.section === section) : banners;
     // Transform banners: set id to _id value
-    const transformedBanners = transformEntities(banners);
+    const transformedBanners = transformEntities(filtered);
     res.status(200).json({
       success: true,
       data: transformedBanners,
@@ -80,7 +85,8 @@ const getBannerById = async (req, res) => {
 // Create new banner (admin)
 const createBanner = async (req, res) => {
   try {
-    const bannerData = req.body;
+    const section = req.body.section === 'grocery' ? 'grocery' : 'food';
+    const bannerData = { ...req.body, section };
     const newBanner = await bannerService.createBanner(bannerData);
     
     logger.info(`Banner created: ${newBanner.id} by admin: ${req.user.id}`);
@@ -106,8 +112,11 @@ const createBanner = async (req, res) => {
 const updateBanner = async (req, res) => {
   try {
     const { id } = req.params;
-    const updateData = req.body;
-    
+    const updateData = { ...req.body };
+    if (updateData.section !== undefined && !['food', 'grocery'].includes(updateData.section)) {
+      delete updateData.section;
+    }
+
     const updatedBanner = await bannerService.updateBanner(id, updateData);
     
     if (!updatedBanner) {

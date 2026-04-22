@@ -72,7 +72,7 @@ exports.verifyMSG91Token = async (req, res) => {
 
     if (!user) {
       // Create new user
-      const role = phone === config.adminPhone ? ROLES.ADMIN : ROLES.USER;
+      const role = phone === config.adminPhone ? ROLES.SUPER_ADMIN : ROLES.USER;
       const name = phone === config.adminPhone ? config.adminName : 'Customer';
 
       user = new User({
@@ -153,7 +153,7 @@ exports.verifyOTP = async (req, res) => {
           let user = await User.findOne({ phone });
 
           if (!user) {
-            const role = phone === config.adminPhone ? ROLES.ADMIN : ROLES.USER;
+            const role = phone === config.adminPhone ? ROLES.SUPER_ADMIN : ROLES.USER;
             const name = phone === config.adminPhone ? config.adminName : 'Customer';
 
             user = new User({
@@ -230,7 +230,7 @@ exports.verifyOTP = async (req, res) => {
 
     if (!user) {
       // Create new user
-      const role = phone === config.adminPhone ? ROLES.ADMIN : ROLES.USER;
+      const role = phone === config.adminPhone ? ROLES.SUPER_ADMIN : ROLES.USER;
       const name = phone === config.adminPhone ? config.adminName : 'Customer';
 
       user = new User({

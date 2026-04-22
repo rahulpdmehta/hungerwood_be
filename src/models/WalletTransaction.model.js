@@ -61,6 +61,12 @@ const walletTransactionSchema = new mongoose.Schema({
     metadata: {
         type: mongoose.Schema.Types.Mixed,
         default: {}
+    },
+    section: {
+        type: String,
+        enum: ['food', 'grocery', null],
+        default: null,
+        index: true
     }
 }, {
     timestamps: true
