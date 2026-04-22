@@ -26,6 +26,7 @@ const menuRoutes = require('./routes/menu.routes');
 const orderRoutes = require('./routes/order.routes');
 const adminRoutes = require('./routes/admin.routes');
 const adminUserRoutes = require('./routes/adminUser.routes');
+const groceryCategoryRoutes = require('./routes/groceryCategory.routes');
 const addressRoutes = require('./routes/address.routes');
 const bannerRoutes = require('./routes/banner.routes');
 const paymentRoutes = require('./routes/payment.routes');
@@ -241,6 +242,7 @@ app.use('/api/payment', paymentRoutes);
 app.use('/api/photos', require('./routes/photo.routes')); // Public photo library endpoint
 app.use('/api/admin', adminRoutes);
 app.use('/api/super/users', adminUserRoutes);
+app.use('/api/admin/grocery/categories', groceryCategoryRoutes);
 app.use('/api/addresses', addressRoutes);
 
 // API documentation (simple)
