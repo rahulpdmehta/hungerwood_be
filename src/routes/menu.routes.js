@@ -1,18 +1,18 @@
 /**
  * Menu Routes
- * Protected routes for browsing menu
+ * Public browsing — customers can view the menu without logging in.
+ * optionalAuthenticate populates req.user when a token is present, so
+ * downstream handlers can still use `req.user` for personalization.
  */
 
 const express = require('express');
 const router = express.Router();
 const menuController = require('../controllers/menu.controller');
-const { authenticate } = require('../middlewares/auth.middleware');
+const { optionalAuthenticate } = require('../middlewares/auth.middleware');
 
-// All menu routes require authentication
-router.use(authenticate);
+router.use(optionalAuthenticate);
 
-// Protected routes
-router.get('/version', menuController.getMenuVersion); // Version check endpoint (lightweight)
+router.get('/version', menuController.getMenuVersion);
 router.get('/categories', menuController.getCategories);
 router.get('/items', menuController.getMenuItems);
 router.get('/items/:id', menuController.getMenuItem);
