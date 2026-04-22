@@ -18,27 +18,35 @@ const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const transformMenuItem = (item) => {
   if (!item) return null;
   const itemObj = item.toObject ? item.toObject() : { ...item };
-  
-  // Set id to _id value (MongoDB ObjectId as string) - override any existing string id field
+
   if (itemObj._id) {
     itemObj.id = itemObj._id.toString();
   }
-  
-  // Convert category to string format for API response
-  // If category is a populated object, extract the name as string
+
+  // Preserve the populated category's id and time-window fields on the item so
+  // clients can round-trip them into the cart without a second lookup. Keep
+  // `category` as a plain name string for backward-compat with existing callers.
   if (itemObj.category && typeof itemObj.category === 'object' && itemObj.category.name) {
-    itemObj.category = itemObj.category.name;
-  }
-  // If category is already a string, keep it
-  // If category is an ObjectId that wasn't populated, set to empty string (shouldn't happen)
-  else if (itemObj.category && typeof itemObj.category === 'object' && !itemObj.category.name) {
+    const cat = itemObj.category;
+    itemObj.categoryId = cat._id ? cat._id.toString() : (cat.id || null);
+    itemObj.categoryMeta = {
+      id: itemObj.categoryId,
+      name: cat.name,
+      isTimeRestricted: !!cat.isTimeRestricted,
+      availableFrom: cat.availableFrom || null,
+      availableTo: cat.availableTo || null
+    };
+    itemObj.category = cat.name;
+  } else if (itemObj.category && typeof itemObj.category === 'object') {
     itemObj.category = '';
-  }
-  // If category is null/undefined, set empty string
-  else if (!itemObj.category) {
+    itemObj.categoryId = null;
+    itemObj.categoryMeta = null;
+  } else if (!itemObj.category) {
     itemObj.category = '';
+    itemObj.categoryId = itemObj.categoryId || null;
+    itemObj.categoryMeta = itemObj.categoryMeta || null;
   }
-  
+
   return itemObj;
 };
 
@@ -120,7 +128,7 @@ exports.getMenuItems = async (req, res) => {
 
     let items = await MenuItem.find(query).populate({
       path: 'category',
-      select: 'name slug order',
+      select: 'name slug order isTimeRestricted availableFrom availableTo',
       model: 'Category'
     }).sort({ createdAt: -1 });
 
@@ -160,7 +168,7 @@ exports.getMenuItem = async (req, res) => {
     }
     
     if (item) {
-      await item.populate('category', 'name slug order');
+      await item.populate('category', 'name slug order isTimeRestricted availableFrom availableTo');
     }
 
     if (!item) {

@@ -25,13 +25,14 @@ function isValidHHmm(s) {
  * Is the category currently orderable?
  * - Categories without isTimeRestricted are always orderable.
  * - Window is half-open: [availableFrom, availableTo).
- * - If either bound is missing/invalid, treat as always orderable (fail open;
- *   admin validation is the enforcement point).
+ * - If the category IS time-restricted but bounds are missing/invalid, fail
+ *   CLOSED — better to hide a misconfigured category than to let it leak
+ *   outside its intended window.
  */
 function isCategoryOrderable(category, now = new Date()) {
   if (!category || !category.isTimeRestricted) return true;
   const { availableFrom, availableTo } = category;
-  if (!isValidHHmm(availableFrom) || !isValidHHmm(availableTo)) return true;
+  if (!isValidHHmm(availableFrom) || !isValidHHmm(availableTo)) return false;
   const nowHHmm = getCurrentIstHHmm(now);
   return nowHHmm >= availableFrom && nowHHmm < availableTo;
 }

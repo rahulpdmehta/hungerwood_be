@@ -8,10 +8,27 @@ const crypto = require('crypto');
 const config = require('../config/env');
 const logger = require('../config/logger');
 const Order = require('../models/Order.model');
+const MenuItem = require('../models/MenuItem.model');
 const Restaurant = require('../models/Restaurant.model');
 const { ORDER_STATUS } = require('../utils/constants');
 const walletService = require('../services/wallet.service');
 const { TRANSACTION_REASONS } = require('../models/WalletTransaction.model');
+const { isCategoryOrderable } = require('../utils/categoryWindow');
+
+async function refundRazorpayPayment(paymentId, amountInPaise, context) {
+  if (!razorpay) {
+    logger.error(`CRITICAL: Cannot auto-refund ${paymentId} — Razorpay not configured. ${context}`);
+    return { refunded: false, reason: 'razorpay_not_configured' };
+  }
+  try {
+    const refund = await razorpay.payments.refund(paymentId, { amount: amountInPaise });
+    logger.info(`↩️ Razorpay auto-refund issued: ${refund.id} for payment ${paymentId}. ${context}`);
+    return { refunded: true, refundId: refund.id };
+  } catch (err) {
+    logger.error(`CRITICAL: Razorpay auto-refund FAILED for ${paymentId}. ${context}`, err);
+    return { refunded: false, reason: err.message || 'refund_api_error' };
+  }
+}
 
 // Initialize Razorpay instance
 // Only initialize if keys are provided (to prevent errors in development)
@@ -141,20 +158,7 @@ exports.verifyPayment = async (req, res) => {
 
     logger.info(`✅ Payment verified: ${razorpay_payment_id} for order ${razorpay_order_id}`);
 
-    // Check restaurant status again (in case it closed during payment)
-    const restaurant = await Restaurant.getRestaurant();
-    if (!restaurant.isOpen) {
-      const message = restaurant.closingMessage || 'Restaurant is currently closed. Please try again later.';
-      // Payment is already done, but we can't create the order
-      // In a real scenario, you might want to refund here
-      return res.status(403).json({
-        success: false,
-        message: message,
-        paymentId: razorpay_payment_id // Return payment ID so frontend can handle refund
-      });
-    }
-
-    // Extract order data
+    // Extract order data up-front so we can compute refund amounts on rejection paths.
     const {
       items,
       orderType,
@@ -168,12 +172,57 @@ exports.verifyPayment = async (req, res) => {
       totalAmount
     } = orderData;
 
+    const refundAmountInPaise = Math.round((totalAmount || 0) * 100);
+
+    // Check restaurant status again (in case it closed during payment)
+    const restaurant = await Restaurant.getRestaurant();
+    if (!restaurant.isOpen) {
+      const message = restaurant.closingMessage || 'Restaurant is currently closed. Please try again later.';
+      const refundResult = await refundRazorpayPayment(
+        razorpay_payment_id,
+        refundAmountInPaise,
+        `Restaurant closed during payment verification. User ${userId}.`
+      );
+      return res.status(403).json({
+        success: false,
+        message,
+        paymentId: razorpay_payment_id,
+        refund: refundResult
+      });
+    }
+
     // Validate items
     if (!items || items.length === 0) {
       return res.status(400).json({
         success: false,
         message: 'Order must contain at least one item'
       });
+    }
+
+    // Enforce per-category ordering window (e.g. Lunch 10:00–12:00 IST).
+    // The window may have closed between cart-check and payment settlement, so
+    // this is the authoritative check before persisting the order.
+    const itemIds = items.map(i => i.menuItem || i.id).filter(Boolean);
+    if (itemIds.length > 0) {
+      const menuItemDocs = await MenuItem.find({ _id: { $in: itemIds } }).populate('category');
+      const now = new Date();
+      for (const mi of menuItemDocs) {
+        const cat = mi.category;
+        if (cat && cat.isTimeRestricted && !isCategoryOrderable(cat, now)) {
+          logger.warn(`Razorpay order rejected — "${cat.name}" outside window for user ${userId}, payment ${razorpay_payment_id}`);
+          const refundResult = await refundRazorpayPayment(
+            razorpay_payment_id,
+            refundAmountInPaise,
+            `Category "${cat.name}" outside window at verification. User ${userId}.`
+          );
+          return res.status(403).json({
+            success: false,
+            message: `${cat.name} is only orderable between ${cat.availableFrom} and ${cat.availableTo} (IST). Your payment is being refunded.`,
+            paymentId: razorpay_payment_id,
+            refund: refundResult
+          });
+        }
+      }
     }
 
     // Handle wallet payment if requested
