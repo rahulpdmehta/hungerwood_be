@@ -38,6 +38,8 @@ class WalletService {
                 throw new Error('Credit amount must be positive');
             }
 
+            const { section = null } = options;
+
             // Atomic balance update to prevent race conditions
             const user = await User.findOneAndUpdate(
                 { _id: userId },
@@ -61,7 +63,8 @@ class WalletService {
                 referralId: options.referralId || null,
                 balanceAfter: newBalance,
                 description: options.description || `Wallet credited: ${reason}`,
-                metadata: options.metadata || {}
+                metadata: options.metadata || {},
+                section
             });
             await transaction.save();
 
@@ -93,6 +96,8 @@ class WalletService {
                 throw new Error('Debit amount must be positive');
             }
 
+            const { section = null } = options;
+
             // Atomic debit with balance check to prevent race conditions
             const user = await User.findOneAndUpdate(
                 { _id: userId, walletBalance: { $gte: amount } },
@@ -120,7 +125,8 @@ class WalletService {
                 orderId: options.orderId || null,
                 balanceAfter: newBalance,
                 description: options.description || `Wallet debited: ${reason}`,
-                metadata: options.metadata || {}
+                metadata: options.metadata || {},
+                section
             });
             await transaction.save();
 
@@ -223,8 +229,9 @@ class WalletService {
     /**
      * Refund amount to wallet (for order cancellation/refund)
      */
-    async refundToWallet(userId, amount, orderId, reason = 'Order refund') {
+    async refundToWallet(userId, amount, orderId, reason = 'Order refund', opts = {}) {
         try {
+            const { section = null } = opts;
             return await this.creditWallet(
                 userId,
                 amount,
@@ -232,7 +239,8 @@ class WalletService {
                 {
                     orderId,
                     description: reason,
-                    metadata: { refund: true }
+                    metadata: { refund: true },
+                    section
                 }
             );
         } catch (error) {
