@@ -1,0 +1,13 @@
+const express = require('express');
+const router = express.Router();
+const { authenticate } = require('../middlewares/auth.middleware');
+const { hasRole } = require('../middlewares/role.middleware');
+const { ROLES } = require('../utils/constants');
+const ctl = require('../controllers/grocerySettings.controller');
+
+router.use(authenticate, hasRole(ROLES.GROCERY_ADMIN));
+
+router.get('/', ctl.get);
+router.patch('/', ctl.update);
+
+module.exports = router;
