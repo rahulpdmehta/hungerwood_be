@@ -49,6 +49,18 @@ describe('isAdmin', () => {
     isAdmin(req, mockRes(), next);
     expect(next).toHaveBeenCalledTimes(1);
   });
+  it('allows RESTAURANT_ADMIN', () => {
+    const next = jest.fn();
+    const req = { user: { role: ROLES.RESTAURANT_ADMIN } };
+    isAdmin(req, mockRes(), next);
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+  it('allows GROCERY_ADMIN', () => {
+    const next = jest.fn();
+    const req = { user: { role: ROLES.GROCERY_ADMIN } };
+    isAdmin(req, mockRes(), next);
+    expect(next).toHaveBeenCalledTimes(1);
+  });
   it('rejects USER', () => {
     const next = jest.fn();
     const res = mockRes();
