@@ -25,6 +25,7 @@ const authRoutes = require('./routes/auth.routes');
 const menuRoutes = require('./routes/menu.routes');
 const orderRoutes = require('./routes/order.routes');
 const adminRoutes = require('./routes/admin.routes');
+const adminUserRoutes = require('./routes/adminUser.routes');
 const addressRoutes = require('./routes/address.routes');
 const bannerRoutes = require('./routes/banner.routes');
 const paymentRoutes = require('./routes/payment.routes');
@@ -239,6 +240,7 @@ app.use('/api/wallet', require('./routes/wallet.routes'));
 app.use('/api/payment', paymentRoutes);
 app.use('/api/photos', require('./routes/photo.routes')); // Public photo library endpoint
 app.use('/api/admin', adminRoutes);
+app.use('/api/super/users', adminUserRoutes);
 app.use('/api/addresses', addressRoutes);
 
 // API documentation (simple)
