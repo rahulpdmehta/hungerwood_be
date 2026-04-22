@@ -87,6 +87,13 @@ const bannerSchema = new mongoose.Schema({
   applicableOn: {
     type: [String],
     default: []
+  },
+  section: {
+    type: String,
+    enum: ['food', 'grocery'],
+    default: 'food',
+    required: true,
+    index: true
   }
 }, {
   timestamps: true
