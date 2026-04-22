@@ -55,11 +55,13 @@ describe('isAdmin', () => {
     isAdmin(req, mockRes(), next);
     expect(next).toHaveBeenCalledTimes(1);
   });
-  it('allows GROCERY_ADMIN', () => {
+  it('rejects GROCERY_ADMIN (grocery-admin has no access to restaurant routes)', () => {
     const next = jest.fn();
+    const res = mockRes();
     const req = { user: { role: ROLES.GROCERY_ADMIN } };
-    isAdmin(req, mockRes(), next);
-    expect(next).toHaveBeenCalledTimes(1);
+    isAdmin(req, res, next);
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(403);
   });
   it('rejects USER', () => {
     const next = jest.fn();

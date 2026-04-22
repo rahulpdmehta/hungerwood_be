@@ -27,10 +27,12 @@ const hasRole = (...roles) => {
 };
 
 /**
- * Legacy admin guard — accepts any of the three admin roles.
- * Kept for backward compatibility with existing routes; new code should
- * prefer `hasRole(...)` with an explicit allowlist.
+ * Restaurant-admin guard. Kept as `isAdmin` for backward compatibility
+ * with the original two-role system; existing routes (menu, banners,
+ * restaurant admin) continue to call this. SUPER_ADMIN is allowed
+ * implicitly via hasRole. GROCERY_ADMIN is NOT allowed here —
+ * grocery routes use `hasRole(ROLES.GROCERY_ADMIN)` explicitly.
  */
-const isAdmin = hasRole(ROLES.RESTAURANT_ADMIN, ROLES.GROCERY_ADMIN);
+const isAdmin = hasRole(ROLES.RESTAURANT_ADMIN);
 
 module.exports = { hasRole, isAdmin };
