@@ -1,60 +1,48 @@
 /**
  * Role-based Access Control Middleware
+ * SUPER_ADMIN is implicitly allowed on every admin route.
  */
 
 const { ROLES } = require('../utils/constants');
 const { errorResponse } = require('../utils/helpers');
 const { HTTP_STATUS, MESSAGES } = require('../utils/constants');
 
-/**
- * Check if user is admin
- */
-const isAdmin = (req, res, next) => {
-  if (!req.user) {
-    return errorResponse(
-      res,
-      HTTP_STATUS.UNAUTHORIZED,
-      MESSAGES.UNAUTHORIZED
-    );
-  }
-  
-  if (req.user.role !== ROLES.ADMIN) {
-    return errorResponse(
-      res,
-      HTTP_STATUS.FORBIDDEN,
-      MESSAGES.FORBIDDEN
-    );
-  }
-  
-  next();
-};
+const isSuperAdmin = (req) => req.user?.role === ROLES.SUPER_ADMIN;
 
 /**
- * Check if user has any of the specified roles
+ * Allow the request only if the authenticated user has any of the listed
+ * roles. SUPER_ADMIN is always allowed.
  */
 const hasRole = (...roles) => {
   return (req, res, next) => {
     if (!req.user) {
-      return errorResponse(
-        res,
-        HTTP_STATUS.UNAUTHORIZED,
-        MESSAGES.UNAUTHORIZED
-      );
+      return errorResponse(res, HTTP_STATUS.UNAUTHORIZED, MESSAGES.UNAUTHORIZED);
     }
-    
-    if (!roles.includes(req.user.role)) {
-      return errorResponse(
-        res,
-        HTTP_STATUS.FORBIDDEN,
-        MESSAGES.FORBIDDEN
-      );
+    if (isSuperAdmin(req) || roles.includes(req.user.role)) {
+      return next();
     }
-    
-    next();
+    return errorResponse(res, HTTP_STATUS.FORBIDDEN, MESSAGES.FORBIDDEN);
   };
 };
 
-module.exports = {
-  isAdmin,
-  hasRole
+/**
+ * Legacy admin guard — accepts any of the three admin roles.
+ * Kept for backward compatibility with existing routes that call isAdmin
+ * without specifying a role; new code should prefer hasRole(...).
+ */
+const isAdmin = (req, res, next) => {
+  const adminRoles = [
+    ROLES.RESTAURANT_ADMIN,
+    ROLES.GROCERY_ADMIN,
+    ROLES.SUPER_ADMIN,
+  ];
+  if (!req.user) {
+    return errorResponse(res, HTTP_STATUS.UNAUTHORIZED, MESSAGES.UNAUTHORIZED);
+  }
+  if (adminRoles.includes(req.user.role)) {
+    return next();
+  }
+  return errorResponse(res, HTTP_STATUS.FORBIDDEN, MESSAGES.FORBIDDEN);
 };
+
+module.exports = { hasRole, isAdmin };
