@@ -34,6 +34,8 @@ const groceryCatalogRoutes = require('./routes/groceryCatalog.routes');
 const groceryOrderCustomerRoutes = require('./routes/groceryOrderCustomer.routes');
 const groceryMeRoutes = require('./routes/groceryMe.routes');
 const groceryPaymentRoutes = require('./routes/groceryPayment.routes');
+const groceryCouponRoutes = require('./routes/coupon.routes');
+const adminCouponRoutes = require('./routes/adminCoupon.routes');
 const addressRoutes = require('./routes/address.routes');
 const bannerRoutes = require('./routes/banner.routes');
 const paymentRoutes = require('./routes/payment.routes');
@@ -256,6 +258,8 @@ app.use('/api/admin/grocery/settings', grocerySettingsRoutes);
 app.use('/api/admin/grocery/orders', groceryOrderAdminRoutes);
 app.use('/api/grocery/orders', groceryOrderCustomerRoutes);
 app.use('/api/grocery/me', groceryMeRoutes);
+app.use('/api/grocery/coupons', groceryCouponRoutes);
+app.use('/api/admin/grocery/coupons', adminCouponRoutes);
 app.use('/api/grocery/payment', groceryPaymentRoutes);
 app.use('/api/addresses', addressRoutes);
 

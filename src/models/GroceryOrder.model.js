@@ -41,6 +41,12 @@ const groceryOrderSchema = new mongoose.Schema({
     updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
   }],
   instructions: { type: String, default: '', maxlength: 500 },
+  couponApplied: {
+    code: String,
+    discount: { type: Number, default: 0 },
+    freeDelivery: { type: Boolean, default: false },
+    type: { type: String, enum: ['PERCENTAGE', 'FLAT', 'FREE_DELIVERY'] },
+  },
   cancellationReason: { type: String, default: null, maxlength: 200 },
   cancelledAt: { type: Date, default: null },
   rating: {

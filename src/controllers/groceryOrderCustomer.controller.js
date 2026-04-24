@@ -2,6 +2,7 @@ const GroceryOrder = require('../models/GroceryOrder.model');
 const GroceryProduct = require('../models/GroceryProduct.model');
 const GrocerySettings = require('../models/GrocerySettings.model');
 const walletService = require('../services/wallet.service');
+const couponService = require('../services/coupon.service');
 const { refundCancelledOrder } = require('../services/groceryOrderCancel.service');
 const logger = require('../config/logger');
 const config = require('../config/env');
@@ -110,7 +111,31 @@ exports.createOrder = async (req, res) => {
       });
     }
 
-    const { tax, delivery, total } = computeBill(settings, subtotal, orderType);
+    let { tax, delivery, total } = computeBill(settings, subtotal, orderType);
+
+    // Optional coupon application — single coupon per order.
+    let couponApplied = null;
+    if (req.body.couponCode) {
+      try {
+        const coupon = await couponService.validateAndCompute({
+          code: req.body.couponCode,
+          subtotal,
+          deliveryFee: delivery,
+          userId,
+          section: 'grocery',
+        });
+        if (coupon.freeDelivery) {
+          delivery = 0;
+        }
+        total = Math.max(0, subtotal + tax + delivery - (coupon.freeDelivery ? 0 : coupon.discount));
+        couponApplied = coupon;
+      } catch (err) {
+        return res.status(err.status || 400).json({
+          success: false,
+          message: err.message || 'Coupon could not be applied',
+        });
+      }
+    }
 
     let walletAmount = 0;
     if (walletUsed && walletUsed > 0) {
@@ -142,6 +167,7 @@ exports.createOrder = async (req, res) => {
       paymentStatus: paymentMethod === 'WALLET' && walletAmount >= total ? 'COMPLETED' : 'PENDING',
       walletUsed: walletAmount,
       instructions: instructions || '',
+      couponApplied: couponApplied || undefined,
       status: GROCERY_ORDER_STATUS.RECEIVED,
       statusHistory: [{ status: GROCERY_ORDER_STATUS.RECEIVED, timestamp: new Date(), updatedBy: userId }],
     });
