@@ -24,4 +24,8 @@ router.get('/:id', orderController.getOrder);
 // Customer cancels their own order (allowed only at RECEIVED)
 router.post('/:id/cancel', orderController.cancelMine);
 
+// Customer rates a completed (food) order (1-5 stars + tags + comment)
+const ratingCtl = require('../controllers/orderRating.controller');
+router.post('/:id/rating', ratingCtl.submitFood);
+
 module.exports = router;
