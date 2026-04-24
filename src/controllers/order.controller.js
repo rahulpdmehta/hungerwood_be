@@ -682,3 +682,59 @@ exports.updateOrderStatus = async (req, res) => {
     });
   }
 };
+
+/**
+ * POST /api/orders/:id/cancel
+ * Customer cancels their own (food) order. Allowed only while still in
+ * RECEIVED status. Issues wallet refund (mirrors admin cancel logic).
+ */
+exports.cancelMine = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { id } = req.params;
+    const reason = (req.body?.reason || '').toString().trim().slice(0, 200);
+
+    const order = await Order.findById(id);
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+
+    const orderUserId = order.user?._id?.toString() || order.user?.toString();
+    if (orderUserId !== String(userId)) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+    if (order.status !== ORDER_STATUS.RECEIVED) {
+      return res.status(400).json({
+        success: false,
+        message: `Order can no longer be cancelled — current status is ${order.status}. Please contact support.`,
+      });
+    }
+
+    if (order.walletUsed > 0) {
+      try {
+        await walletService.refundToWallet(
+          orderUserId,
+          order.walletUsed,
+          order._id,
+          `Refund for cancelled order #${order.orderId}`
+        );
+      } catch (refundError) {
+        logger.error('Failed to refund wallet on customer cancel:', refundError);
+      }
+    }
+
+    order.status = ORDER_STATUS.CANCELLED;
+    order.cancelledAt = new Date();
+    if (reason) order.cancellationReason = reason;
+    if (!order.statusHistory) order.statusHistory = [];
+    order.statusHistory.push({
+      status: ORDER_STATUS.CANCELLED,
+      timestamp: getCurrentISO(),
+      updatedBy: userId,
+    });
+
+    await order.save();
+    res.json({ success: true, data: { ...order.toObject(), id: order._id.toString() } });
+  } catch (e) {
+    logger.error('order.cancelMine', e);
+    res.status(500).json({ success: false, message: 'Failed to cancel order' });
+  }
+};

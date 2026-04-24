@@ -1,6 +1,6 @@
 const GroceryOrder = require('../models/GroceryOrder.model');
-const walletService = require('../services/wallet.service');
 const logger = require('../config/logger');
+const { refundCancelledOrder } = require('../services/groceryOrderCancel.service');
 const {
   GROCERY_ORDER_STATUS,
   validateGroceryStatusTransition,
@@ -46,40 +46,9 @@ exports.adminUpdateStatus = async (req, res) => {
       });
     }
 
-    // Wallet refund on cancel
-    if (nextStatus === GROCERY_ORDER_STATUS.CANCELLED && o.walletUsed > 0) {
-      try {
-        await walletService.refundToWallet(o.user, o.walletUsed, o._id, `Refund for cancelled grocery order #${o.orderId}`, { section: 'grocery' });
-      } catch (e) { logger.error('grocery cancel wallet refund', e); }
-    }
-
-    // Razorpay refund on cancel
-    if (
-      nextStatus === GROCERY_ORDER_STATUS.CANCELLED &&
-      o.paymentMethod === 'RAZORPAY' &&
-      o.paymentStatus === 'COMPLETED' &&
-      o.paymentDetails?.razorpayPaymentId
-    ) {
-      // Refund the amount that was captured via Razorpay = total minus wallet used.
-      const paidViaRazorpay = o.totalAmount - (o.walletUsed || 0);
-      if (paidViaRazorpay > 0) {
-        try {
-          const Razorpay = require('razorpay');
-          const config = require('../config/env');
-          if (config.razorpayKeyId && config.razorpayKeySecret) {
-            const rp = new Razorpay({ key_id: config.razorpayKeyId, key_secret: config.razorpayKeySecret });
-            const refund = await rp.payments.refund(o.paymentDetails.razorpayPaymentId, {
-              amount: Math.round(paidViaRazorpay * 100),
-            });
-            logger.info(`↩️ Razorpay refund on cancel: ${refund.id} for grocery order ${o.orderId}`);
-            o.paymentStatus = 'REFUNDED';
-          } else {
-            logger.error(`CRITICAL: Cannot refund grocery order ${o.orderId} — Razorpay not configured`);
-          }
-        } catch (refErr) {
-          logger.error(`CRITICAL: Razorpay refund failed for cancelled grocery order ${o.orderId}`, refErr);
-        }
-      }
+    if (nextStatus === GROCERY_ORDER_STATUS.CANCELLED) {
+      await refundCancelledOrder(o);
+      o.cancelledAt = new Date();
     }
 
     o.status = nextStatus;

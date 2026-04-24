@@ -8,5 +8,6 @@ router.use(authenticate);
 router.post('/', ctl.createOrder);
 router.get('/', ctl.listMine);
 router.get('/:id', ctl.getMine);
+router.post('/:id/cancel', ctl.cancelMine);
 
 module.exports = router;

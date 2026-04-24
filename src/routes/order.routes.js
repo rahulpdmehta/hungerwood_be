@@ -21,4 +21,7 @@ router.get('/my', orderController.getMyOrders);
 // Get single order
 router.get('/:id', orderController.getOrder);
 
+// Customer cancels their own order (allowed only at RECEIVED)
+router.post('/:id/cancel', orderController.cancelMine);
+
 module.exports = router;

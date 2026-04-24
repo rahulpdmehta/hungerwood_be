@@ -2,11 +2,16 @@ const GroceryOrder = require('../models/GroceryOrder.model');
 const GroceryProduct = require('../models/GroceryProduct.model');
 const GrocerySettings = require('../models/GrocerySettings.model');
 const walletService = require('../services/wallet.service');
+const { refundCancelledOrder } = require('../services/groceryOrderCancel.service');
 const logger = require('../config/logger');
 const config = require('../config/env');
 const crypto = require('crypto');
 const { TRANSACTION_REASONS } = require('../models/WalletTransaction.model');
 const { GROCERY_ORDER_STATUS } = require('../utils/groceryOrderStatusValidator');
+
+const CUSTOMER_CANCELLABLE_STATUSES = new Set([
+  GROCERY_ORDER_STATUS.RECEIVED,
+]);
 
 /** Generate grocery order ID: HG + YYYYMMDD + NNN (daily count) + RR (random) */
 async function generateOrderId() {
@@ -189,6 +194,49 @@ exports.getMine = async (req, res) => {
     }
     res.json({ success: true, data: { ...order.toObject(), id: order._id.toString() } });
   } catch (e) { logger.error('grocery.customer.getMine', e); res.status(500).json({ success: false }); }
+};
+
+/**
+ * POST /api/grocery/orders/:id/cancel
+ * Customer cancels their own order while it's still in a cancellable status.
+ * Captures cancellationReason from body, refunds wallet/Razorpay, transitions
+ * status to CANCELLED.
+ */
+exports.cancelMine = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { id } = req.params;
+    const reason = (req.body?.reason || '').toString().trim().slice(0, 200);
+
+    const query = id.match(/^[0-9a-fA-F]{24}$/) ? { _id: id } : { orderId: id };
+    const order = await GroceryOrder.findOne(query);
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+    if (String(order.user) !== String(userId)) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+    if (!CUSTOMER_CANCELLABLE_STATUSES.has(order.status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Order can no longer be cancelled — current status is ${order.status}. Please contact support.`,
+      });
+    }
+
+    await refundCancelledOrder(order);
+    order.status = GROCERY_ORDER_STATUS.CANCELLED;
+    order.cancelledAt = new Date();
+    if (reason) order.cancellationReason = reason;
+    order.statusHistory.push({
+      status: GROCERY_ORDER_STATUS.CANCELLED,
+      timestamp: new Date(),
+      updatedBy: userId,
+    });
+    await order.save();
+
+    res.json({ success: true, data: { ...order.toObject(), id: order._id.toString() } });
+  } catch (e) {
+    logger.error('grocery.customer.cancelMine', e);
+    res.status(500).json({ success: false, message: 'Failed to cancel order' });
+  }
 };
 
 // Shared helpers for Task 1.3 (Razorpay verify flow).

@@ -40,7 +40,15 @@ const groceryOrderSchema = new mongoose.Schema({
     timestamp: Date,
     updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
   }],
-  instructions: { type: String, default: '', maxlength: 500 }
+  instructions: { type: String, default: '', maxlength: 500 },
+  cancellationReason: { type: String, default: null, maxlength: 200 },
+  cancelledAt: { type: Date, default: null },
+  rating: {
+    stars: { type: Number, min: 1, max: 5 },
+    tags: [String],
+    comment: String,
+    submittedAt: Date,
+  },
 }, { timestamps: true });
 
 groceryOrderSchema.index({ user: 1, createdAt: -1 });
