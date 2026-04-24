@@ -113,6 +113,24 @@ exports.createOrder = async (req, res) => {
 
     let { tax, delivery, total } = computeBill(settings, subtotal, orderType);
 
+    // Optional bundle discount — verified server-side from the bundle slug.
+    let bundleApplied = null;
+    if (req.body.bundleSlug) {
+      try {
+        const GroceryBundle = require('../models/GroceryBundle.model');
+        const b = await GroceryBundle.findOne({ slug: req.body.bundleSlug, isActive: true }).lean();
+        if (b) {
+          const bundleDiscount = Math.max(0, b.regularPrice - b.bundlePrice);
+          if (bundleDiscount > 0) {
+            total = Math.max(0, total - bundleDiscount);
+            bundleApplied = { slug: b.slug, name: b.name, discount: bundleDiscount };
+          }
+        }
+      } catch (e) {
+        logger.error('grocery.order.bundleVerify', e);
+      }
+    }
+
     // Optional coupon application — single coupon per order.
     let couponApplied = null;
     if (req.body.couponCode) {
@@ -168,6 +186,7 @@ exports.createOrder = async (req, res) => {
       walletUsed: walletAmount,
       instructions: instructions || '',
       couponApplied: couponApplied || undefined,
+      bundleApplied: bundleApplied || undefined,
       status: GROCERY_ORDER_STATUS.RECEIVED,
       statusHistory: [{ status: GROCERY_ORDER_STATUS.RECEIVED, timestamp: new Date(), updatedBy: userId }],
     });

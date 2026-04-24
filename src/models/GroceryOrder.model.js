@@ -47,6 +47,11 @@ const groceryOrderSchema = new mongoose.Schema({
     freeDelivery: { type: Boolean, default: false },
     type: { type: String, enum: ['PERCENTAGE', 'FLAT', 'FREE_DELIVERY'] },
   },
+  bundleApplied: {
+    slug: String,
+    name: String,
+    discount: { type: Number, default: 0 },
+  },
   cancellationReason: { type: String, default: null, maxlength: 200 },
   cancelledAt: { type: Date, default: null },
   rating: {
