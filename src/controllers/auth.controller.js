@@ -143,6 +143,34 @@ exports.verifyOTP = async (req, res) => {
   try {
     const { phone, otp } = req.body;
 
+    // E2E bypass — only available when explicitly enabled outside production.
+    // Allows the canonical OTP `000000` for any seeded test phone so the
+    // Playwright suite can sign in without going through MSG91/local OTP flow.
+    if (
+      process.env.E2E_BYPASS_OTP === 'true' &&
+      process.env.NODE_ENV !== 'production' &&
+      otp === '000000'
+    ) {
+      const user = await User.findOne({ phone });
+      if (user && user.isActive) {
+        const token = jwt.sign(
+          { userId: user._id, phone: user.phone, role: user.role },
+          config.jwtSecret,
+          { expiresIn: config.jwtExpiresIn }
+        );
+        const userObj = transformEntity(user);
+        return res.json({
+          success: true,
+          message: 'E2E bypass login',
+          data: {
+            user: { id: userObj.id, phone: userObj.phone, name: userObj.name, email: userObj.email, role: userObj.role },
+            token,
+            isProfileComplete: true,
+          },
+        });
+      }
+    }
+
     // If MSG91 is enabled, try MSG91 verification first
     if (config.msg91Enabled && config.msg91AuthKey) {
       try {
