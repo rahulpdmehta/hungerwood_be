@@ -21,11 +21,18 @@ const GroceryProduct = require('../src/models/GroceryProduct.model');
 const GrocerySettings = require('../src/models/GrocerySettings.model');
 
 const CATEGORIES = [
-  { name: 'Staples',    order: 1, image: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400&q=80' },
-  { name: 'Dairy',      order: 2, image: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?w=400&q=80' },
-  { name: 'Snacks',     order: 3, image: 'https://images.unsplash.com/photo-1599490659213-e2b9527bd087?w=400&q=80' },
-  { name: 'Beverages',  order: 4, image: 'https://images.unsplash.com/photo-1544145945-f90425340c7e?w=400&q=80' },
-  { name: 'Household',  order: 5, image: 'https://images.unsplash.com/photo-1610557892470-55d9e80c0bce?w=400&q=80' },
+  { name: 'Staples',              order: 1,  image: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400&q=80' },
+  { name: 'Dairy',                order: 2,  image: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?w=400&q=80' },
+  { name: 'Fruits & Vegetables',  order: 3,  image: 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=400&q=80' },
+  { name: 'Snacks',               order: 4,  image: 'https://images.unsplash.com/photo-1599490659213-e2b9527bd087?w=400&q=80' },
+  { name: 'Beverages',            order: 5,  image: 'https://images.unsplash.com/photo-1544145945-f90425340c7e?w=400&q=80' },
+  { name: 'Bakery',               order: 6,  image: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400&q=80' },
+  { name: 'Masala & Spices',      order: 7,  image: 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=400&q=80' },
+  { name: 'Oil & Ghee',           order: 8,  image: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=400&q=80' },
+  { name: 'Personal Care',        order: 9,  image: 'https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?w=400&q=80' },
+  { name: 'Baby Care',            order: 10, image: 'https://images.unsplash.com/photo-1515488764276-beab7607c1e6?w=400&q=80' },
+  { name: 'Frozen Foods',         order: 11, image: 'https://images.unsplash.com/photo-1563805042-7684c019e1cb?w=400&q=80' },
+  { name: 'Household',            order: 12, image: 'https://images.unsplash.com/photo-1610557892470-55d9e80c0bce?w=400&q=80' },
 ];
 
 // Products reference categories by name; we resolve IDs after categories are upserted.
