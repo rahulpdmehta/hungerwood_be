@@ -30,9 +30,7 @@ const CATEGORIES = [
   { name: 'Masala & Spices',      order: 7,  image: 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=400&q=80' },
   { name: 'Oil & Ghee',           order: 8,  image: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=400&q=80' },
   { name: 'Personal Care',        order: 9,  image: 'https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?w=400&q=80' },
-  { name: 'Baby Care',            order: 10, image: 'https://images.unsplash.com/photo-1515488764276-beab7607c1e6?w=400&q=80' },
-  { name: 'Frozen Foods',         order: 11, image: 'https://images.unsplash.com/photo-1563805042-7684c019e1cb?w=400&q=80' },
-  { name: 'Household',            order: 12, image: 'https://images.unsplash.com/photo-1610557892470-55d9e80c0bce?w=400&q=80' },
+  { name: 'Household',            order: 10, image: 'https://images.unsplash.com/photo-1610557892470-55d9e80c0bce?w=400&q=80' },
 ];
 
 // Products reference categories by name; we resolve IDs after categories are upserted.

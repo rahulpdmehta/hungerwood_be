@@ -72,6 +72,61 @@ const CATEGORY_DATA = {
       'https://images.unsplash.com/photo-1600857062241-98ef96a7e3db?w=400&q=80',
     ],
   },
+  'Fruits & Vegetables': {
+    brands: ['Fresho','BB Royal','Organic Tattva','Nature\'s Basket','Safal','Qrate','Farm2Kitchen','Patanjali Fresh','Desi Farms','Deep','Nilon\'s','iD Fresh','24 Mantra','Pro Nature','FreshLo','Fieldking','Kisan','Godrej Fresh','Heritage Farm','Whole Farm','Veggie Fresh','Green Harvest','Namdhari','First Choice','Zespri'],
+    bases: ['Apple','Banana','Orange','Pomegranate','Grapes','Papaya','Watermelon','Mango','Pear','Kiwi','Onion','Tomato','Potato','Carrot','Cucumber','Lady Finger','Brinjal','Cabbage','Cauliflower','Spinach','Coriander','Mint','Lemon','Ginger','Garlic','Green Chilli','Capsicum','Bottle Gourd','Pumpkin','Beetroot'],
+    sizes: [['250 g', 20, 60],['500 g', 35, 120],['1 kg', 60, 240]],
+    images: [
+      'https://images.unsplash.com/photo-1542838132-92c53300491e?w=400&q=80',
+      'https://images.unsplash.com/photo-1610832958506-aa56368176cf?w=400&q=80',
+      'https://images.unsplash.com/photo-1619546813926-a78fa6372cd2?w=400&q=80',
+      'https://images.unsplash.com/photo-1566842600175-97dca3c5ad01?w=400&q=80',
+    ],
+  },
+  Bakery: {
+    brands: ['Britannia','Modern','English Oven','Harvest Gold','Winkies','Theobroma','Monginis','Loafers','Bon Ami','The Baker\'s Dozen','Brown Sugar','Karachi','Fresh Bakery','Wibs','Elite','Bonn','Perfetto','MIO AMORE','Dukes','Chheda\'s','Unibic','Karachi Bakery','Sunfeast','McVitie\'s','Parle'],
+    bases: ['White Bread','Brown Bread','Multigrain Bread','Whole Wheat Bread','Pav','Fruit Bun','Cream Bun','Croissant','Bagel','Muffin','Cup Cake','Pound Cake','Plum Cake','Chocolate Pastry','Brownie','Butter Cookies','Donut','Rusk','Toast','Pizza Base','Burger Bun','Garlic Bread','Focaccia','Danish','Eclair'],
+    sizes: [['Pack of 4', 30, 90],['Pack of 6', 45, 140],['Pack of 12', 80, 260]],
+    images: [
+      'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400&q=80',
+      'https://images.unsplash.com/photo-1586444248902-2f64eddc13df?w=400&q=80',
+      'https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=400&q=80',
+      'https://images.unsplash.com/photo-1568254183919-78a4f43a2877?w=400&q=80',
+    ],
+  },
+  'Masala & Spices': {
+    brands: ['MDH','Everest','Catch','Tata Sampann','Ramdev','Aashirvaad','Badshah','Patanjali','Urban Platter','Goldiee','Sakthi','Eastern','Shakti','Priya','Priyanka','Mother\'s Recipe','Deep','Suhana','Pushp','Shalimar','Keya','Double Horse','Aachi','Dabur','Nilon\'s'],
+    bases: ['Turmeric Powder','Red Chilli Powder','Coriander Powder','Cumin Powder','Garam Masala','Chaat Masala','Sambar Masala','Biryani Masala','Pav Bhaji Masala','Meat Masala','Kitchen King','Chicken Masala','Rajma Masala','Chhole Masala','Tandoori Masala','Pani Puri Masala','Dhaniya Powder','Hing Powder','Saunf','Ajwain','Black Pepper','Cardamom','Cinnamon','Clove','Bay Leaf'],
+    sizes: [['100 g', 30, 100],['200 g', 55, 180],['500 g', 120, 400]],
+    images: [
+      'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?w=400&q=80',
+      'https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?w=400&q=80',
+      'https://images.unsplash.com/photo-1532336414038-cf19250c5757?w=400&q=80',
+      'https://images.unsplash.com/photo-1501430654243-c934cec2e1c0?w=400&q=80',
+    ],
+  },
+  'Oil & Ghee': {
+    brands: ['Fortune','Saffola','Dhara','Sundrop','Engine','Gemini','Mahakosh','Patanjali','Amul','Mother Dairy','Gowardhan','Anik','Nutrela','Gagan','Freedom','Ruchi Gold','Postman','Tirupati','Idhayam','Kachi Ghani','Figaro','Olitalia','Bertolli','Borges','Leonardo'],
+    bases: ['Refined Oil','Mustard Oil','Sunflower Oil','Rice Bran Oil','Groundnut Oil','Coconut Oil','Olive Oil','Cow Ghee','Pure Ghee','Desi Ghee','Vanaspati','Soyabean Oil','Palm Oil','Canola Oil','Sesame Oil','Flaxseed Oil','Kachi Ghani Oil','Filtered Oil','A2 Ghee','Buffalo Ghee'],
+    sizes: [['500 ml', 80, 220],['1 L', 140, 380],['5 L', 650, 1700]],
+    images: [
+      'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=400&q=80',
+      'https://images.unsplash.com/photo-1599003037890-5a6e9325ff06?w=400&q=80',
+      'https://images.unsplash.com/photo-1620706857370-e1b9770e8bb1?w=400&q=80',
+      'https://images.unsplash.com/photo-1611735341450-74d61e660ad2?w=400&q=80',
+    ],
+  },
+  'Personal Care': {
+    brands: ['Dove','Lux','Lifebuoy','Santoor','Cinthol','Godrej','Patanjali','Himalaya','Nivea','Vaseline','Parachute','Dabur','Pond\'s','Head & Shoulders','Clinic Plus','Sunsilk','Pantene','Garnier','L\'Oreal','Colgate','Sensodyne','Pepsodent','Oral-B','Gillette','Old Spice'],
+    bases: ['Bath Soap','Body Wash','Shampoo','Conditioner','Hair Oil','Face Wash','Body Lotion','Toothpaste','Toothbrush','Deodorant','Talc','Face Cream','Sunscreen','Shaving Foam','Razor','Hair Gel','Hair Color','Kajal','Lip Balm','Perfume','Moisturizer','Hand Cream','Foot Cream','Mouthwash','Cotton Buds'],
+    sizes: [['100 g', 40, 140],['200 g', 70, 240],['500 g', 150, 480]],
+    images: [
+      'https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?w=400&q=80',
+      'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=400&q=80',
+      'https://images.unsplash.com/photo-1570194065650-d99fb4bedf0a?w=400&q=80',
+      'https://images.unsplash.com/photo-1608248543803-ba4f8c70ae0b?w=400&q=80',
+    ],
+  },
 };
 
 function buildVariants(category, idx) {
