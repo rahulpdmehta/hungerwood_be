@@ -7,6 +7,7 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "seed": "node src/utils/seed.js",
+    "affinity:recompute": "node scripts/aggregate-affinity.js",
     "test": "jest",
     "test:watch": "jest --watch"
   },
