@@ -5,7 +5,15 @@ const logger = require('../config/logger');
 const serialize = (p) => {
   const o = p.toObject();
   o.id = o._id.toString();
-  o.category = o.category?.toString ? o.category.toString() : o.category;
+  if (o.category && typeof o.category === 'object') {
+    // Populated category doc: keep { id, name }. Otherwise it's a raw ObjectId
+    // and we want a plain string id.
+    if (o.category.name !== undefined) {
+      o.category = { id: (o.category._id || o.category.id || '').toString(), name: o.category.name };
+    } else {
+      o.category = o.category.toString();
+    }
+  }
   o.variants = (o.variants || []).map(v => ({ ...v, id: v._id?.toString() }));
   return o;
 };
