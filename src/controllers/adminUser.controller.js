@@ -22,7 +22,11 @@ exports.listAdmins = async (req, res) => {
   }
 };
 
-/** Create a new admin user. Returns 400 if phone already taken. */
+/**
+ * Create-or-promote an admin user. If phone is unknown, creates a new admin.
+ * If phone belongs to an existing user (customer or admin), promotes them
+ * to the requested role and reactivates if needed.
+ */
 exports.createAdmin = async (req, res) => {
   try {
     const { phone, name, role } = req.body;
@@ -32,10 +36,24 @@ exports.createAdmin = async (req, res) => {
     if (!ADMIN_ROLES.includes(role)) {
       return res.status(400).json({ success: false, message: 'Invalid admin role' });
     }
+
     const existing = await User.findOne({ phone });
     if (existing) {
-      return res.status(400).json({ success: false, message: 'Phone already registered' });
+      if (existing.role === ROLES.SUPER_ADMIN && role !== ROLES.SUPER_ADMIN) {
+        const count = await User.countDocuments({ role: ROLES.SUPER_ADMIN, isActive: true });
+        if (count <= 1) {
+          return res.status(400).json({ success: false, message: 'Cannot demote the only super-admin' });
+        }
+      }
+      const wasAdmin = ADMIN_ROLES.includes(existing.role);
+      existing.role = role;
+      if (name) existing.name = name;
+      if (!existing.isActive) existing.isActive = true;
+      await existing.save();
+      logger.info(`[admin] super-admin ${req.user.userId} ${wasAdmin ? 'updated' : 'promoted'} ${existing._id} → ${role}`);
+      return res.json({ success: true, data: existing, promoted: !wasAdmin });
     }
+
     const user = await User.create({ phone, name, role, isActive: true });
     logger.info(`[admin] super-admin ${req.user.userId} created admin ${user._id} (${role})`);
     res.status(201).json({ success: true, data: user });

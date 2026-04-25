@@ -6,6 +6,19 @@
 const bannerService = require('../services/banner.service');
 const logger = require('../config/logger');
 const { transformEntity, transformEntities } = require('../utils/transformers');
+const { ROLES } = require('../utils/constants');
+
+/**
+ * Returns the section a non-super admin is allowed to manage, or null
+ * if the user can manage any section (SUPER_ADMIN).
+ */
+const allowedSectionForUser = (user) => {
+  if (!user) return null;
+  if (user.role === ROLES.SUPER_ADMIN) return null;
+  if (user.role === ROLES.GROCERY_ADMIN) return 'grocery';
+  if (user.role === ROLES.RESTAURANT_ADMIN) return 'food';
+  return null;
+};
 
 // Get all active banners (public)
 const getActiveBanners = async (req, res) => {
@@ -85,8 +98,15 @@ const getBannerById = async (req, res) => {
 // Create new banner (admin)
 const createBanner = async (req, res) => {
   try {
-    const section = req.body.section === 'grocery' ? 'grocery' : 'food';
-    const bannerData = { ...req.body, section };
+    const requestedSection = req.body.section === 'grocery' ? 'grocery' : 'food';
+    const lockedSection = allowedSectionForUser(req.user);
+    if (lockedSection && requestedSection !== lockedSection) {
+      return res.status(403).json({
+        success: false,
+        message: `Your role can only manage banners in section "${lockedSection}"`,
+      });
+    }
+    const bannerData = { ...req.body, section: requestedSection };
     const newBanner = await bannerService.createBanner(bannerData);
     
     logger.info(`Banner created: ${newBanner.id} by admin: ${req.user.id}`);
@@ -115,6 +135,26 @@ const updateBanner = async (req, res) => {
     const updateData = { ...req.body };
     if (updateData.section !== undefined && !['food', 'grocery'].includes(updateData.section)) {
       delete updateData.section;
+    }
+
+    const lockedSection = allowedSectionForUser(req.user);
+    if (lockedSection) {
+      const existing = await bannerService.getBannerById(id);
+      if (!existing) {
+        return res.status(404).json({ success: false, message: 'Banner not found' });
+      }
+      if (existing.section !== lockedSection) {
+        return res.status(403).json({
+          success: false,
+          message: `Your role can only manage banners in section "${lockedSection}"`,
+        });
+      }
+      if (updateData.section && updateData.section !== lockedSection) {
+        return res.status(403).json({
+          success: false,
+          message: `Cannot move a banner out of section "${lockedSection}"`,
+        });
+      }
     }
 
     const updatedBanner = await bannerService.updateBanner(id, updateData);
@@ -149,6 +189,21 @@ const updateBanner = async (req, res) => {
 const toggleBannerStatus = async (req, res) => {
   try {
     const { id } = req.params;
+
+    const lockedSection = allowedSectionForUser(req.user);
+    if (lockedSection) {
+      const existing = await bannerService.getBannerById(id);
+      if (!existing) {
+        return res.status(404).json({ success: false, message: 'Banner not found' });
+      }
+      if (existing.section !== lockedSection) {
+        return res.status(403).json({
+          success: false,
+          message: `Your role can only manage banners in section "${lockedSection}"`,
+        });
+      }
+    }
+
     const updatedBanner = await bannerService.toggleBannerStatus(id);
     
     if (!updatedBanner) {
@@ -181,6 +236,21 @@ const toggleBannerStatus = async (req, res) => {
 const deleteBanner = async (req, res) => {
   try {
     const { id } = req.params;
+
+    const lockedSection = allowedSectionForUser(req.user);
+    if (lockedSection) {
+      const existing = await bannerService.getBannerById(id);
+      if (!existing) {
+        return res.status(404).json({ success: false, message: 'Banner not found' });
+      }
+      if (existing.section !== lockedSection) {
+        return res.status(403).json({
+          success: false,
+          message: `Your role can only manage banners in section "${lockedSection}"`,
+        });
+      }
+    }
+
     const deleted = await bannerService.deleteBanner(id);
     
     if (!deleted) {
