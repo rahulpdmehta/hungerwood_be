@@ -8,7 +8,10 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
 const { Banner } = require('../src/models/banner.model');
+const GroceryCategory = require('../src/models/GroceryCategory.model');
 
+// `categoryName` is resolved to a real GroceryCategory _id at seed time
+// so the customer-side /grocery/c/:slug page (which looks up by id) works.
 const BANNERS = [
   {
     id: 'grocery-banner-fresh-arrivals',
@@ -22,7 +25,7 @@ const BANNERS = [
     backgroundColor: '#ecfdf5',
     textColor: '#065f46',
     ctaText: 'Shop Fruits & Veg',
-    ctaLink: '/grocery/c/fruits-vegetables',
+    categoryName: 'Fruits & Vegetables',
     priority: 1,
   },
   {
@@ -37,7 +40,7 @@ const BANNERS = [
     backgroundColor: '#fef3c7',
     textColor: '#78350f',
     ctaText: 'Shop Pantry',
-    ctaLink: '/grocery/c/staples',
+    categoryName: 'Staples',
     discountPercent: 25,
     priority: 2,
   },
@@ -53,7 +56,7 @@ const BANNERS = [
     backgroundColor: '#eff6ff',
     textColor: '#1e3a8a',
     ctaText: 'Shop Dairy',
-    ctaLink: '/grocery/c/dairy',
+    categoryName: 'Dairy',
     priority: 3,
   },
   {
@@ -68,7 +71,7 @@ const BANNERS = [
     backgroundColor: '#fff7ed',
     textColor: '#7c2d12',
     ctaText: 'Shop Snacks',
-    ctaLink: '/grocery/c/snacks',
+    categoryName: 'Snacks',
     priority: 4,
   },
   {
@@ -83,7 +86,7 @@ const BANNERS = [
     backgroundColor: '#ecfeff',
     textColor: '#155e75',
     ctaText: 'Shop Beverages',
-    ctaLink: '/grocery/c/beverages',
+    categoryName: 'Beverages',
     priority: 5,
   },
   {
@@ -98,7 +101,7 @@ const BANNERS = [
     backgroundColor: '#faf5ff',
     textColor: '#581c87',
     ctaText: 'Shop Personal Care',
-    ctaLink: '/grocery/c/personal-care',
+    categoryName: 'Personal Care',
     discountPercent: 15,
     priority: 6,
   },
@@ -106,10 +109,22 @@ const BANNERS = [
 
 (async () => {
   await mongoose.connect(process.env.MONGO_URI);
+
+  const cats = await GroceryCategory.find().select('_id name').lean();
+  const byName = new Map(cats.map(c => [c.name, c._id.toString()]));
+
   let created = 0;
   let updated = 0;
+  let skipped = 0;
   for (const b of BANNERS) {
-    const doc = { ...b, section: 'grocery', enabled: true };
+    const catId = byName.get(b.categoryName);
+    if (!catId) {
+      console.warn(`Skipping ${b.id}: category "${b.categoryName}" not found in DB`);
+      skipped += 1;
+      continue;
+    }
+    const { categoryName, ...rest } = b;
+    const doc = { ...rest, ctaLink: `/grocery/c/${catId}`, section: 'grocery', enabled: true };
     const res = await Banner.findOneAndUpdate(
       { id: b.id },
       { $set: doc },
@@ -118,7 +133,7 @@ const BANNERS = [
     if (res.lastErrorObject?.updatedExisting) updated += 1;
     else created += 1;
   }
-  console.log(`Grocery banners — created: ${created}, updated: ${updated}, total: ${BANNERS.length}`);
+  console.log(`Grocery banners — created: ${created}, updated: ${updated}, skipped: ${skipped}`);
   await mongoose.disconnect();
 })().catch((e) => {
   console.error(e);
