@@ -27,13 +27,41 @@ function parseVariants(raw) {
   return raw;
 }
 
+const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 exports.list = async (req, res) => {
   try {
     const { category, search, available } = req.query;
     const q = {};
     if (category) q.category = category;
     if (available === 'true') q.isAvailable = true;
-    if (search) q.$text = { $search: search };
+    else if (available === 'false') q.isAvailable = false;
+    if (search && String(search).trim()) {
+      const rx = new RegExp(escapeRegex(String(search).trim()), 'i');
+      q.$or = [{ name: rx }, { brand: rx }, { description: rx }];
+    }
+
+    // When `page` is present, paginate. Otherwise return the full list
+    // (kept for callers that need every product, e.g. the bundles picker).
+    if (req.query.page !== undefined || req.query.limit !== undefined) {
+      const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+      const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 20));
+      const skip = (page - 1) * limit;
+      const [items, total] = await Promise.all([
+        GroceryProduct.find(q)
+          .populate('category', 'name')
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit),
+        GroceryProduct.countDocuments(q),
+      ]);
+      return res.json({
+        success: true,
+        data: items.map(serialize),
+        pagination: { total, page, limit, pages: Math.ceil(total / limit) },
+      });
+    }
+
     const items = await GroceryProduct.find(q).populate('category', 'name').sort({ createdAt: -1 });
     res.json({ success: true, data: items.map(serialize) });
   } catch (e) { logger.error('grocery.product.list', e); res.status(500).json({ success: false }); }
