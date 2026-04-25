@@ -37,6 +37,15 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+
+  // DPDP soft-delete tombstone. When the user invokes "Delete my account",
+  // we wipe PII, drop the unique-phone constraint by suffixing the phone,
+  // and set this timestamp. Orders/payments stay intact for accounting.
+  deletedAt: {
+    type: Date,
+    default: null,
+    index: true,
+  },
   
   // OTP fields
   otp: {

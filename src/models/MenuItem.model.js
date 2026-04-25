@@ -108,6 +108,8 @@ const menuItemSchema = new mongoose.Schema({
 menuItemSchema.index({ category: 1, isAvailable: 1 });
 menuItemSchema.index({ isVeg: 1 });
 menuItemSchema.index({ 'tags.isBestseller': 1 });
+menuItemSchema.index({ isAvailable: 1, createdAt: -1 });
+menuItemSchema.index({ name: 'text', description: 'text' });
 
 // Virtual for full price with addons
 menuItemSchema.virtual('priceWithAddons').get(function() {

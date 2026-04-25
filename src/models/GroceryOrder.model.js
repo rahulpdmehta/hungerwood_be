@@ -63,6 +63,13 @@ const groceryOrderSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 groceryOrderSchema.index({ user: 1, createdAt: -1 });
+groceryOrderSchema.index({ user: 1, status: 1, createdAt: -1 });
 groceryOrderSchema.index({ status: 1 });
+groceryOrderSchema.index({ createdAt: -1 });
+// /grocery/payment/verify idempotency
+groceryOrderSchema.index(
+  { 'paymentDetails.razorpayPaymentId': 1 },
+  { unique: true, sparse: true, name: 'paymentDetails_razorpayPaymentId_unique' },
+);
 
 module.exports = mongoose.model('GroceryOrder', groceryOrderSchema);

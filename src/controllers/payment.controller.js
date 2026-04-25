@@ -10,10 +10,15 @@ const logger = require('../config/logger');
 const Order = require('../models/Order.model');
 const MenuItem = require('../models/MenuItem.model');
 const Restaurant = require('../models/Restaurant.model');
-const { ORDER_STATUS } = require('../utils/constants');
+const { ORDER_STATUS, BILLING } = require('../utils/constants');
 const walletService = require('../services/wallet.service');
 const { TRANSACTION_REASONS } = require('../models/WalletTransaction.model');
 const { isCategoryOrderable } = require('../utils/categoryWindow');
+
+// Tolerated rounding error between client-displayed total and authoritative
+// server-recomputed total. Anything bigger means the cart drifted (price
+// changed, item went unavailable) — treat as fraud-or-stale and refund.
+const PRICE_DRIFT_TOLERANCE = 1; // ₹1
 
 async function refundRazorpayPayment(paymentId, amountInPaise, context) {
   if (!razorpay) {
@@ -158,21 +163,35 @@ exports.verifyPayment = async (req, res) => {
 
     logger.info(`✅ Payment verified: ${razorpay_payment_id} for order ${razorpay_order_id}`);
 
-    // Extract order data up-front so we can compute refund amounts on rejection paths.
+    // Idempotency: a Razorpay payment maps to exactly one Order. If this
+    // verify endpoint is called twice (network retry, Razorpay handler
+    // re-fired, page refresh) the second call returns the existing order
+    // instead of creating a duplicate + double-debiting wallet.
+    const existingOrder = await Order.findOne({
+      'paymentDetails.razorpayPaymentId': razorpay_payment_id,
+    });
+    if (existingOrder) {
+      logger.info(`↩️ Idempotent verify hit — existing order ${existingOrder.orderId} for payment ${razorpay_payment_id}`);
+      return res.status(200).json({
+        success: true,
+        idempotent: true,
+        data: { orderId: existingOrder.orderId, _id: existingOrder._id, status: existingOrder.status },
+      });
+    }
+
+    // Client-supplied order data is treated as a hint only. Items + addons
+    // come from the cart, but every price/tax/fee is recomputed below from
+    // the authoritative MenuItem records before we commit anything.
     const {
       items,
       orderType,
       deliveryAddress,
       specialInstructions,
-      itemTotal,
-      deliveryFee,
-      tax,
-      discount,
       walletUsed,
-      totalAmount
+      totalAmount: clientTotal,
     } = orderData;
 
-    const refundAmountInPaise = Math.round((totalAmount || 0) * 100);
+    const refundAmountInPaise = Math.round((clientTotal || 0) * 100);
 
     // Check restaurant status again (in case it closed during payment)
     const restaurant = await Restaurant.getRestaurant();
@@ -199,73 +218,146 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    // Enforce per-category ordering window (e.g. Lunch 10:00–12:00 IST).
-    // The window may have closed between cart-check and payment settlement, so
-    // this is the authoritative check before persisting the order.
+    // Fetch authoritative MenuItem records once and reuse for both the
+    // time-window check and the price recomputation below.
     const itemIds = items.map(i => i.menuItem || i.id).filter(Boolean);
-    if (itemIds.length > 0) {
-      const menuItemDocs = await MenuItem.find({ _id: { $in: itemIds } }).populate('category');
-      const now = new Date();
-      for (const mi of menuItemDocs) {
-        const cat = mi.category;
-        if (cat && cat.isTimeRestricted && !isCategoryOrderable(cat, now)) {
-          logger.warn(`Razorpay order rejected — "${cat.name}" outside window for user ${userId}, payment ${razorpay_payment_id}`);
-          const refundResult = await refundRazorpayPayment(
-            razorpay_payment_id,
-            refundAmountInPaise,
-            `Category "${cat.name}" outside window at verification. User ${userId}.`
-          );
-          return res.status(403).json({
-            success: false,
-            message: `${cat.name} is only orderable between ${cat.availableFrom} and ${cat.availableTo} (IST). Your payment is being refunded.`,
-            paymentId: razorpay_payment_id,
-            refund: refundResult
-          });
-        }
+    if (itemIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'No valid menu item IDs in order' });
+    }
+    const menuItemDocs = await MenuItem.find({ _id: { $in: itemIds } }).populate('category');
+    const menuById = new Map(menuItemDocs.map(m => [m._id.toString(), m]));
+
+    // Time-window enforcement: lunch (or any time-restricted category) must
+    // still be in its serving window at payment settlement.
+    const now = new Date();
+    for (const mi of menuItemDocs) {
+      const cat = mi.category;
+      if (cat && cat.isTimeRestricted && !isCategoryOrderable(cat, now)) {
+        logger.warn(`Razorpay order rejected — "${cat.name}" outside window for user ${userId}, payment ${razorpay_payment_id}`);
+        const refundResult = await refundRazorpayPayment(
+          razorpay_payment_id,
+          refundAmountInPaise,
+          `Category "${cat.name}" outside window at verification. User ${userId}.`
+        );
+        return res.status(403).json({
+          success: false,
+          message: `${cat.name} is only orderable between ${cat.availableFrom} and ${cat.availableTo} (IST). Your payment is being refunded.`,
+          paymentId: razorpay_payment_id,
+          refund: refundResult
+        });
       }
     }
 
-    // Handle wallet payment if requested
-    let walletAmount = walletUsed || 0;
-    let amountPayable = totalAmount;
+    // Authoritative price recomputation. Never trust client-supplied prices,
+    // tax, delivery, or total. Build the order from MenuItem records on the
+    // server. If anything is missing/unavailable, refund and bail out.
+    const serverItems = [];
+    let serverItemTotal = 0;
+    for (const item of items) {
+      const mi = menuById.get(String(item.menuItem || item.id));
+      if (!mi) {
+        const refundResult = await refundRazorpayPayment(
+          razorpay_payment_id,
+          refundAmountInPaise,
+          `Unknown menu item in order at verify. User ${userId}.`,
+        );
+        return res.status(400).json({
+          success: false,
+          message: 'One or more items in your cart are no longer available. Your payment is being refunded.',
+          paymentId: razorpay_payment_id,
+          refund: refundResult,
+        });
+      }
+      if (mi.isAvailable === false) {
+        const refundResult = await refundRazorpayPayment(
+          razorpay_payment_id,
+          refundAmountInPaise,
+          `Item "${mi.name}" unavailable at verify. User ${userId}.`,
+        );
+        return res.status(400).json({
+          success: false,
+          message: `"${mi.name}" is currently unavailable. Your payment is being refunded.`,
+          paymentId: razorpay_payment_id,
+          refund: refundResult,
+        });
+      }
+      const qty = Math.max(1, Number(item.quantity) || 1);
+      const unitPrice = Number(mi.price) * (1 - (Number(mi.discount) || 0) / 100);
+      const lineTotal = Math.round(unitPrice * qty);
+      // Re-validate addons against MenuItem.addons (don't accept arbitrary client addons).
+      const validAddons = (mi.addons || []).map(a => ({ name: a.name, price: Number(a.price) || 0 }));
+      const validAddonNames = new Set(validAddons.map(a => a.name));
+      const orderAddons = (item.addons || [])
+        .filter(a => validAddonNames.has(a.name))
+        .map(a => validAddons.find(va => va.name === a.name));
+      const addonTotal = orderAddons.reduce((s, a) => s + a.price, 0) * qty;
+      serverItemTotal += lineTotal + addonTotal;
+      serverItems.push({
+        menuItem: mi._id,
+        name: mi.name,
+        price: Math.round(unitPrice),
+        quantity: qty,
+        addons: orderAddons,
+      });
+    }
 
+    const serverTax = Math.round(serverItemTotal * BILLING.TAX_RATE);
+    const serverDelivery = orderType?.toUpperCase() === 'DELIVERY' ? BILLING.DELIVERY_FEE : 0;
+    const serverPackaging = BILLING.PACKAGING_FEE || 0;
+    const serverTotal = serverItemTotal + serverTax + serverDelivery + serverPackaging;
+
+    // Sanity-check: client total should be within ₹1 of server total. Bigger
+    // drift means the cart changed mid-flow (price update, item removed) or
+    // someone is tampering — refund either way.
+    if (typeof clientTotal === 'number' && Math.abs(clientTotal - serverTotal) > PRICE_DRIFT_TOLERANCE) {
+      logger.warn(`Price drift on payment verify: client=${clientTotal} server=${serverTotal} user=${userId} payment=${razorpay_payment_id}`);
+      const refundResult = await refundRazorpayPayment(
+        razorpay_payment_id,
+        Math.round(clientTotal * 100),
+        `Price mismatch — client ${clientTotal}, server ${serverTotal}. User ${userId}.`,
+      );
+      return res.status(409).json({
+        success: false,
+        message: 'The total has changed since you started checkout. Your payment is being refunded — please re-add the items.',
+        paymentId: razorpay_payment_id,
+        refund: refundResult,
+      });
+    }
+
+    // Wallet usage — capped at MAX_WALLET_USAGE_PERCENT of server total.
+    let walletAmount = Math.max(0, Number(walletUsed) || 0);
+    let amountPayable = serverTotal;
     if (walletAmount > 0) {
       try {
-        logger.info(`🔍 Validating wallet usage: User ${userId}, Amount: ₹${walletAmount}`);
-
-        // Validate wallet usage
-        const validationResult = await walletService.validateWalletUsage(
+        await walletService.validateWalletUsage(
           userId,
           walletAmount,
-          totalAmount,
-          config.maxWalletUsagePercent
+          serverTotal,
+          config.maxWalletUsagePercent,
         );
-
-        logger.info(`✅ Wallet validation passed:`, validationResult);
-
-        // Deduct from wallet
-        logger.info(`💸 Debiting wallet: User ${userId}, Amount: ₹${walletAmount}`);
         const debitResult = await walletService.debitWallet(
           userId,
           walletAmount,
           TRANSACTION_REASONS.ORDER_PAYMENT,
           {
-            description: `Payment for order`,
-            metadata: {
-              orderType,
-              itemCount: items.length
-            }
-          }
+            description: 'Payment for order',
+            metadata: { orderType, itemCount: items.length, source: 'restaurant' },
+          },
         );
-
-        amountPayable = totalAmount - walletAmount;
-
-        logger.info(`✅ Wallet payment processed: User ${userId}, Amount: ₹${walletAmount}, New Balance: ₹${debitResult.newBalance}`);
+        amountPayable = serverTotal - walletAmount;
+        logger.info(`✅ Wallet debited ₹${walletAmount}, new balance ₹${debitResult.newBalance}`);
       } catch (walletError) {
         logger.error('❌ Wallet payment failed:', walletError);
+        const refundResult = await refundRazorpayPayment(
+          razorpay_payment_id,
+          Math.round(serverTotal * 100),
+          `Wallet validation failed at verify. User ${userId}.`,
+        );
         return res.status(400).json({
           success: false,
-          message: walletError.message || 'Wallet payment failed'
+          message: walletError.message || 'Wallet payment failed',
+          paymentId: razorpay_payment_id,
+          refund: refundResult,
         });
       }
     }
@@ -289,19 +381,13 @@ exports.verifyPayment = async (req, res) => {
     const randomSuffix = require('crypto').randomInt(10, 99);
     const orderId = `${todayDate}${String(todayOrderCount + 1).padStart(3, '0')}${randomSuffix}`;
 
-    // Create order
+    // Create order using authoritative server-recomputed values.
     const order = new Order({
       orderId,
       user: userId,
-      items: items.map(item => ({
-        menuItem: item.menuItem,
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity,
-        addons: item.addons || []
-      })),
+      items: serverItems,
       orderType: orderType.toUpperCase(),
-      deliveryAddress: orderType === 'DELIVERY' && deliveryAddress ? {
+      deliveryAddress: orderType?.toUpperCase() === 'DELIVERY' && deliveryAddress ? {
         street: deliveryAddress.street,
         city: deliveryAddress.city,
         state: deliveryAddress.state,
@@ -314,10 +400,11 @@ exports.verifyPayment = async (req, res) => {
         razorpayPaymentId: razorpay_payment_id,
         razorpaySignature: razorpay_signature
       },
-      subtotal: itemTotal,
-      tax: tax || 0,
-      delivery: deliveryFee || 0,
-      totalAmount: amountPayable,
+      subtotal: serverItemTotal,
+      tax: serverTax,
+      packaging: serverPackaging,
+      delivery: serverDelivery,
+      totalAmount: serverTotal,
       walletUsed: walletAmount,
       instructions: specialInstructions || '',
       status: ORDER_STATUS.RECEIVED,
@@ -331,6 +418,29 @@ exports.verifyPayment = async (req, res) => {
     try {
       await order.save();
     } catch (saveError) {
+      // Race: a concurrent verify hit beat us to the save, the unique index
+      // on paymentDetails.razorpayPaymentId triggered E11000. Look up the
+      // winning order and return it instead of refunding.
+      if (saveError?.code === 11000 && /razorpayPaymentId/.test(saveError?.message || '')) {
+        const winner = await Order.findOne({ 'paymentDetails.razorpayPaymentId': razorpay_payment_id });
+        if (winner) {
+          logger.info(`↩️ Idempotent verify race — losing thread for payment ${razorpay_payment_id}, returning order ${winner.orderId}`);
+          // Wallet was already debited by the winning thread (or we just
+          // double-debited and need to refund our own debit).
+          if (walletAmount > 0) {
+            try {
+              await walletService.refundToWallet(userId, walletAmount, winner._id, 'Race-loser refund — duplicate verify');
+            } catch (e) {
+              logger.error('CRITICAL: Race-loser wallet refund failed:', e);
+            }
+          }
+          return res.status(200).json({
+            success: true,
+            idempotent: true,
+            data: { orderId: winner.orderId, _id: winner._id, status: winner.status },
+          });
+        }
+      }
       if (walletAmount > 0) {
         try {
           await walletService.refundToWallet(userId, walletAmount, null, 'Order creation failed - automatic refund');

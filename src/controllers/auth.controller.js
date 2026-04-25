@@ -143,14 +143,20 @@ exports.verifyOTP = async (req, res) => {
   try {
     const { phone, otp } = req.body;
 
-    // E2E bypass — only available when explicitly enabled outside production.
-    // Allows the canonical OTP `000000` for any seeded test phone so the
-    // Playwright suite can sign in without going through MSG91/local OTP flow.
-    if (
+    // E2E bypass — strictly gated:
+    //   1. NODE_ENV !== 'production' AND VERCEL_ENV !== 'production'
+    //      (so a Vercel preview/prod build can never enable it)
+    //   2. E2E_BYPASS_OTP env flag explicitly true
+    //   3. Phone is on a hardcoded allowlist of seeded test accounts
+    //   4. OTP equals '000000'
+    // Even if all four hold, this branch only mints a token for the test
+    // accounts created by scripts/seed-e2e.js — never an arbitrary phone.
+    const E2E_TEST_PHONES = new Set(['9999900001', '9999900002', '9999900003', '9999900004']);
+    const e2eEnabled =
       process.env.E2E_BYPASS_OTP === 'true' &&
       process.env.NODE_ENV !== 'production' &&
-      otp === '000000'
-    ) {
+      process.env.VERCEL_ENV !== 'production';
+    if (e2eEnabled && otp === '000000' && E2E_TEST_PHONES.has(String(phone))) {
       const user = await User.findOne({ phone });
       if (user && user.isActive) {
         const token = jwt.sign(
@@ -539,5 +545,104 @@ exports.completeProfile = async (req, res) => {
       success: false,
       message: 'Failed to complete profile'
     });
+  }
+};
+
+/**
+ * GET /api/auth/export
+ * DPDP Act compliance — let the user download a copy of everything we hold
+ * about them as JSON. Includes profile, addresses, orders (food + grocery),
+ * and wallet transactions. Excludes hashed/sensitive fields.
+ */
+exports.exportMyData = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const Order = require('../models/Order.model');
+    const GroceryOrder = require('../models/GroceryOrder.model');
+    const { WalletTransaction } = require('../models/WalletTransaction.model');
+
+    const [user, addresses, foodOrders, groceryOrders, walletTxns] = await Promise.all([
+      User.findById(userId).select('-otp -otpExpiry').lean(),
+      Address.find({ user: userId }).lean(),
+      Order.find({ user: userId }).lean(),
+      GroceryOrder.find({ user: userId }).lean(),
+      WalletTransaction.find({ user: userId }).sort({ createdAt: -1 }).lean(),
+    ]);
+
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="hungerwood-export-${userId}.json"`);
+    res.json({
+      exportedAt: new Date().toISOString(),
+      profile: user,
+      addresses,
+      foodOrders,
+      groceryOrders,
+      walletTransactions: walletTxns,
+    });
+  } catch (error) {
+    logger.error('Data export error:', error);
+    res.status(500).json({ success: false, message: 'Failed to export data' });
+  }
+};
+
+/**
+ * DELETE /api/auth/account
+ * DPDP Act compliance — soft-delete the account. PII is anonymized; the
+ * User row is kept (with deletedAt set) so foreign keys on past orders
+ * remain valid for accounting/refund disputes. The account can no longer
+ * log in (isActive = false) and the phone number is freed for future
+ * reuse by suffixing the stored value so the unique-phone index doesn't
+ * block re-signup.
+ */
+exports.deleteMyAccount = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    if (user.role && user.role !== 'USER') {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin/staff accounts cannot self-delete. Please contact support.',
+      });
+    }
+
+    // Refuse if there's an open order — the operations team needs the link.
+    const Order = require('../models/Order.model');
+    const GroceryOrder = require('../models/GroceryOrder.model');
+    const ACTIVE = ['RECEIVED', 'CONFIRMED', 'PREPARING', 'READY', 'OUT_FOR_DELIVERY', 'PACKED', 'READY_FOR_PICKUP'];
+    const [openFood, openGrocery] = await Promise.all([
+      Order.countDocuments({ user: userId, status: { $in: ACTIVE } }),
+      GroceryOrder.countDocuments({ user: userId, status: { $in: ACTIVE } }),
+    ]);
+    if (openFood + openGrocery > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'You have an order in progress. Please wait for it to complete before deleting your account.',
+      });
+    }
+
+    const ts = Date.now();
+    user.phone = `deleted_${ts}_${user.phone}`.slice(0, 20);
+    user.name = 'Deleted user';
+    user.email = undefined;
+    user.profilePic = undefined;
+    user.isActive = false;
+    user.deletedAt = new Date();
+    user.otp = undefined;
+    user.otpExpiry = undefined;
+    user.referralCode = undefined;
+    await user.save();
+
+    // Detach saved addresses so future scans don't surface the user's data.
+    await Address.updateMany({ user: userId }, { $set: { isDeleted: true } });
+
+    logger.info(`User self-deleted: ${userId}`);
+    res.json({ success: true, message: 'Account deleted. Goodbye!' });
+  } catch (error) {
+    logger.error('Account deletion error:', error);
+    res.status(500).json({ success: false, message: 'Failed to delete account' });
   }
 };

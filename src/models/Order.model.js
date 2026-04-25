@@ -177,9 +177,16 @@ const orderSchema = new mongoose.Schema({
 
 // Indexes for faster queries
 orderSchema.index({ user: 1, createdAt: -1 });
+orderSchema.index({ user: 1, status: 1, createdAt: -1 });
 orderSchema.index({ orderId: 1 }, { unique: true });
 orderSchema.index({ status: 1 });
 orderSchema.index({ createdAt: -1 });
+// Backstop for /payment/verify idempotency: a single Razorpay payment can
+// only ever back one Order. Sparse so older orders (wallet-only / cash) are exempt.
+orderSchema.index(
+  { 'paymentDetails.razorpayPaymentId': 1 },
+  { unique: true, sparse: true, name: 'paymentDetails_razorpayPaymentId_unique' },
+);
 
 // Pre-save hook to ensure delivery address for delivery orders
 orderSchema.pre('save', function(next) {

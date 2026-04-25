@@ -14,16 +14,19 @@ const connectDB = async () => {
     // handshake often exceeds 5s). Staging deploys sit close to the cluster
     // so 5s worked there. 20s gives local dev enough headroom while still
     // failing fast if Atlas is actually down.
+    // Pool size raised for the concurrent-user growth path. With Vercel
+    // autoscaling each invocation gets its own pool, so don't go wild — but
+    // 10/1 was clearly too tight (connections queue under spikes). 50/5 fits
+    // a Mongoose 8 driver against M2/M10 Atlas.
+    // useNewUrlParser / useUnifiedTopology are no-ops in driver 4+ — dropped.
     const options = {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
       serverSelectionTimeoutMS: 20000,
       socketTimeoutMS: 45000,
       connectTimeoutMS: 20000,
-      maxPoolSize: 10,
-      minPoolSize: 1,
+      maxPoolSize: 50,
+      minPoolSize: 5,
       retryWrites: true,
-      w: 'majority'
+      w: 'majority',
     };
 
     const conn = await mongoose.connect(config.mongoUri, options);

@@ -18,4 +18,8 @@ router.get('/me', authenticate, authController.getProfile);
 router.patch('/profile', authenticate, authController.updateProfile);
 router.post('/complete-profile', authenticate, authController.completeProfile);
 
+// DPDP Act compliance
+router.get('/export', authenticate, authController.exportMyData);
+router.delete('/account', authenticate, authController.deleteMyAccount);
+
 module.exports = router;

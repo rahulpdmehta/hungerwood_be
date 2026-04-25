@@ -102,6 +102,7 @@ const bannerSchema = new mongoose.Schema({
 // Indexes
 bannerSchema.index({ enabled: 1, priority: -1 });
 bannerSchema.index({ validFrom: 1, validUntil: 1 });
+bannerSchema.index({ section: 1, enabled: 1, priority: -1 });
 
 const Banner = mongoose.model('Banner', bannerSchema);
 

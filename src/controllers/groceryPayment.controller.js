@@ -93,6 +93,20 @@ exports.verifyPayment = async (req, res) => {
     }
     logger.info(`✅ Grocery payment verified: ${razorpay_payment_id}`);
 
+    // Idempotency: a Razorpay payment maps to exactly one GroceryOrder.
+    // Network retries / re-fired Razorpay handlers must not create duplicates.
+    const existingOrder = await GroceryOrder.findOne({
+      'paymentDetails.razorpayPaymentId': razorpay_payment_id,
+    });
+    if (existingOrder) {
+      logger.info(`↩️ Grocery idempotent verify hit — existing order ${existingOrder.orderId}`);
+      return res.status(200).json({
+        success: true,
+        idempotent: true,
+        data: { orderId: existingOrder.orderId, _id: existingOrder._id, status: existingOrder.status },
+      });
+    }
+
     const { items, orderType, deliveryAddress, instructions, walletUsed = 0, totalAmount } = orderData;
     const refundAmountInPaise = Math.round((totalAmount || 0) * 100);
 
@@ -176,6 +190,22 @@ exports.verifyPayment = async (req, res) => {
     try {
       await order.save();
     } catch (saveErr) {
+      // Race-loser path: a concurrent verify already wrote the order; the
+      // unique index on paymentDetails.razorpayPaymentId tripped E11000.
+      if (saveErr?.code === 11000 && /razorpayPaymentId/.test(saveErr?.message || '')) {
+        const winner = await GroceryOrder.findOne({ 'paymentDetails.razorpayPaymentId': razorpay_payment_id });
+        if (winner) {
+          if (walletAmount > 0) {
+            try { await walletService.refundToWallet(userId, walletAmount, winner._id, 'Grocery race-loser refund — duplicate verify', { section: 'grocery' }); }
+            catch (e) { logger.error('CRITICAL: race-loser wallet refund failed:', e); }
+          }
+          return res.status(200).json({
+            success: true,
+            idempotent: true,
+            data: { orderId: winner.orderId, _id: winner._id, status: winner.status },
+          });
+        }
+      }
       // Compensating refunds: wallet first (we debited just above), then Razorpay
       if (walletAmount > 0) {
         try { await walletService.refundToWallet(userId, walletAmount, null, 'Grocery order save failed — wallet auto-refund', { section: 'grocery' }); }
