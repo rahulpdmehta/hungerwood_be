@@ -64,13 +64,22 @@ const addressSchema = new mongoose.Schema({
   isDefault: {
     type: Boolean,
     default: false
+  },
+
+  // Set when the owning user invokes account-delete (DPDP). Lets us keep
+  // the row for FK integrity on past orders while hiding it from any
+  // user-facing list.
+  isDeleted: {
+    type: Boolean,
+    default: false,
+    index: true,
   }
 }, {
   timestamps: true
 });
 
 // Index for faster queries
-addressSchema.index({ user: 1 });
+addressSchema.index({ user: 1, isDeleted: 1 });
 
 // Ensure only one default address per user
 addressSchema.pre('save', async function(next) {

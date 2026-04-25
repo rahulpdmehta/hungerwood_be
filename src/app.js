@@ -5,6 +5,7 @@
 
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const config = require('./config/env');
 const logger = require('./config/logger');
@@ -82,6 +83,17 @@ const getClientIP = (req) => {
   // Fallback to standard IP detection (works with trust proxy in local dev)
   return req.ip || req.connection.remoteAddress || 'unknown';
 };
+
+// Security headers — content-security-policy is left disabled for now
+// because the SPA + Razorpay/Mapbox third-party scripts need a tuned policy
+// (TODO before launch). Everything else (HSTS, X-Frame-Options, no-sniff,
+// referrer-policy, cross-origin-resource-policy) is on by default.
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  }),
+);
 
 // Body parser
 app.use(express.json({ limit: '10mb' }));
