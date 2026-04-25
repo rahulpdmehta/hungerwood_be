@@ -97,9 +97,17 @@ const corsOptions = {
     // Normalize origin by removing trailing slash and converting to lowercase for comparison
     const normalizedOrigin = origin.replace(/\/$/, '').toLowerCase();
     
-    // In development, allow all localhost origins
+    // In development, allow all localhost + private LAN (RFC1918) origins so
+    // a phone/tablet on the same Wi-Fi can hit the local backend.
     if (config.nodeEnv === 'development') {
-      if (normalizedOrigin.startsWith('http://localhost:') || normalizedOrigin.startsWith('http://127.0.0.1:')) {
+      const isLocalhost =
+        normalizedOrigin.startsWith('http://localhost:') ||
+        normalizedOrigin.startsWith('http://127.0.0.1:');
+      const isPrivateLan =
+        /^http:\/\/192\.168\.\d+\.\d+(:\d+)?$/.test(normalizedOrigin) ||
+        /^http:\/\/10\.\d+\.\d+\.\d+(:\d+)?$/.test(normalizedOrigin) ||
+        /^http:\/\/172\.(1[6-9]|2\d|3[01])\.\d+\.\d+(:\d+)?$/.test(normalizedOrigin);
+      if (isLocalhost || isPrivateLan) {
         return callback(null, true);
       }
     }
